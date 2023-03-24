@@ -36,6 +36,8 @@ type DiceGamePlay struct {
 	bet []map[string]int64
 }
 
+//骰子
+
 func (h *WsHandler) Dice() {
 	for _, v := range h.resp.Data.MessageChain {
 		switch {

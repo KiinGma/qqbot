@@ -31,6 +31,11 @@ type Config struct {
 	AtMeSessionAutoDeleteTime int64  `mapstructure:"AT_ME_SESSION_AUTO_DELETE_TIME"`
 	OpenAiKey                 string `mapstructure:"OPENAI_KEY"`
 	TrainCookie               string `mapstructure:"TRAIN_COOKIE"`
+
+	AlipayAppId      string `mapstructure:"ALIPAY_APP_ID"`
+	AlipayPriKey     string `mapstructure:"ALIPAY_PRI_KEY"`
+	AlipayPubKey     string `mapstructure:"ALIPAY_PUB_KEY"`
+	AlipayEncryptKey string `mapstructure:"ALIPAY_ENCRYPT_KEY"`
 }
 
 var appConfig *Config
@@ -46,7 +51,7 @@ func LoadCPGConfig() *Config {
 func readConfig() *Config {
 	config := Config{}
 
-	viper.SetConfigFile(".env")
+	viper.SetConfigFile(`E:\work\qqbot-go\.env`)
 	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
 	if err != nil {

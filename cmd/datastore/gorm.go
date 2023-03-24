@@ -101,6 +101,8 @@ func synchronizeTables(db *gorm.DB) {
 	err = db.AutoMigrate(models.Commodity{})
 	err = db.AutoMigrate(models.Equip{})
 	err = db.AutoMigrate(models.Suit{})
+	err = db.AutoMigrate(models.AlipayLink{})
+	err = db.AutoMigrate(models.AlipayTradeOrder{})
 	fmt.Println(err)
 }
 

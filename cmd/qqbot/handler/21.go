@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+//21点游戏
+
 var Game21Map map[uint64]Game21Struct
 
 type Game21Struct struct {

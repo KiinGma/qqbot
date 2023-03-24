@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"qqbot/cmd/qqbot/models"
 	"qqbot/cmd/qqbot/repository"
-	"qqbot/pkg/image"
+	"qqbot/pkg/image_pkg"
 	"regexp"
 	"strconv"
 	"strings"
@@ -274,37 +274,37 @@ func lots(h *WsHandler) {
 	case b.Int64() < 100: //大吉
 		send.Luck = 100
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(BigLucyRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(BigLucyRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	case b.Int64() < 300 && b.Int64() >= 100: //吉
 		send.Luck = 80
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(LucyRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(LucyRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	case b.Int64() < 500 && b.Int64() >= 300: //中吉
 		send.Luck = 30
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(CentreLucyRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(CentreLucyRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	case b.Int64() < 700 && b.Int64() >= 500: //末吉
 		send.Luck = 10
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(LittleLucyRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(LittleLucyRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	case b.Int64() < 900 && b.Int64() >= 700: //凶
 		send.Luck = -20
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(DangerousRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(DangerousRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	case b.Int64() < 1000 && b.Int64() >= 900: //大凶
 		send.Luck = -50
 		mcs := []models.MessageChain{
-			{Type: "Image", Base64: imageUtil.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(BigDangerousRandomMap)))},
+			{Type: "Image", Base64: image_pkg.ImgPath2Base64(fmt.Sprintf(`./image/抽签/%v.png`, GetRandomMap(BigDangerousRandomMap)))},
 		}
 		h.client.SendGroupMessage(h.Gid, mcs)
 	}

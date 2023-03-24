@@ -3,18 +3,19 @@ module qqbot
 go 1.19
 
 require (
+	github.com/boombuler/barcode v1.0.1
 	github.com/dengsgo/math-engine v0.0.0-20220911070221-a5a560a8684b
 	github.com/getkin/kin-openapi v0.97.0
+	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/gomodule/redigo v1.8.9
-	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/imroc/req/v3 v3.19.2
 	github.com/labstack/echo/v4 v4.8.0
 	github.com/labstack/gommon v0.3.1
-	github.com/mojocn/base64Captcha v1.3.5
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/rs/zerolog v1.27.0
+	github.com/smartwalle/alipay/v3 v3.2.0
 	github.com/spf13/viper v1.12.0
 	github.com/tidwall/gjson v1.14.3
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
@@ -60,6 +61,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
+	github.com/smartwalle/crypto4go v1.0.2 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -69,13 +71,13 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/net v0.0.0-20220802222814-0bcc04d9c69b // indirect
-	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/mod v0.8.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

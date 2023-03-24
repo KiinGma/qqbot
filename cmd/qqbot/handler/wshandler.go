@@ -14,7 +14,6 @@ import (
 )
 
 var SessionTypeMap map[uint64]int
-var LastMessageMap map[uint64][]models.MessageChain
 
 type WsHandler struct {
 	appConfig      *appconfig.Config
@@ -97,7 +96,6 @@ func (h *WsHandler) GroupHandler(msg []byte) {
 	if IsAtMe(resp) {
 		h.ChatGpt(resp)
 	}
-	return
 	CommonCommand(h, resp)
 	if SessionTypeMap[groupId] == 0 {
 		for _, v := range resp.Data.MessageChain {
@@ -185,6 +183,7 @@ func CommonCommand(h *WsHandler, resp models.RespMessage) {
 			}
 		}
 		h.Integrate(h.Gid, h.sendId, v.Text)
+		go h.Alipay()
 	}
 }
 

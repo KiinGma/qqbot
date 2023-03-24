@@ -9,6 +9,8 @@ import (
 	"strconv"
 )
 
+//发布静态图片
+
 func (h *WsHandler) FactStatic() {
 	for _, v := range h.resp.Data.MessageChain {
 		switch {

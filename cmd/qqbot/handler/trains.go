@@ -24,6 +24,8 @@ func (h *WsHandler) Trains() {
 	}
 }
 
+//火车票查询
+
 func GetTrains(h *WsHandler, text string) {
 	t, from, to, fromName, toName := TrainsStationFormat(h, text)
 	if from == "" || to == "" || fromName == "" || toName == "" {

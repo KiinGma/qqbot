@@ -41,10 +41,8 @@ func (r *CommonRepo) Create(m interface{}) error {
 
 func (r *CommonRepo) Update(filters map[string]any, m interface{}) error {
 	db := r.db
-	if len(filters) != 0 {
-		for k, v := range filters {
-			db = db.Where(k, v)
-		}
+	for k, v := range filters {
+		db = db.Where(k, v)
 	}
 	err := db.Save(m).Error
 	return err
@@ -52,10 +50,8 @@ func (r *CommonRepo) Update(filters map[string]any, m interface{}) error {
 
 func (r *CommonRepo) GetByIDs(filters map[string]any, m interface{}) error {
 	db := r.db
-	if len(filters) != 0 {
-		for k, v := range filters {
-			db = db.Where(k, v)
-		}
+	for k, v := range filters {
+		db = db.Where(k, v)
 	}
 	err := db.First(m).Error
 	return err

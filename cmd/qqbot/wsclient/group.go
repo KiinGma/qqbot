@@ -76,6 +76,34 @@ func (c *Client) SendGroupMessageWithString(groupId uint64, at uint64, msg strin
 	c.SeadMessage(groupId, "sendGroupMessage", mcs)
 }
 
+//根据web url发送图片
+
+func (c *Client) SendGroupImageWithWebUrl(groupId uint64, at uint64, url string) {
+	mcs := make([]models.MessageChain, 0)
+	if at != 0 {
+		mcs = append(mcs, models.MessageChain{
+			Type:   "At",
+			Target: at,
+		})
+	}
+	mcs = append(mcs, models.MessageChain{Type: "image", Url: url})
+	c.SeadMessage(groupId, "sendGroupMessage", mcs)
+}
+
+//根据base64发送图片
+
+func (c *Client) SendGroupImageWithBase64(groupId uint64, at uint64, data string) {
+	mcs := make([]models.MessageChain, 0)
+	if at != 0 {
+		mcs = append(mcs, models.MessageChain{
+			Type:   "At",
+			Target: at,
+		})
+	}
+	mcs = append(mcs, models.MessageChain{Type: "Image", Base64: data})
+	c.SeadMessage(groupId, "sendGroupMessage", mcs)
+}
+
 func (c *Client) SendDice(groupId uint64, at uint64, value int64) {
 	mcs := make([]models.MessageChain, 0)
 	if at != 0 {

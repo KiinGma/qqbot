@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+//脏话
+
 func (h *WsHandler) Curse(groupId, senderId uint64, message string) {
 	list := gjson.Get(json.Curse, "RECORDS").Array()
 

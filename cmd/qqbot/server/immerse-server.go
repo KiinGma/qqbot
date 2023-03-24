@@ -68,6 +68,9 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	openapi.RegisterHandlers(s, h)
 	s.GET("/ws/message", wsHandler.WSMessage)*/
 
+	s.POST("/alipay/notify", wsClient.AlipayNotify)
+	s.GET("/alipay/return", wsClient.AlipayReturn)
+	s.GET("/pay/:id", wsClient.GetPayLink)
 	//注册首页
 	//s.File("/", config.StaticWeb+`/index.html`)
 

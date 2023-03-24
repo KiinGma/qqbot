@@ -7,6 +7,8 @@ import (
 	"strconv"
 )
 
+//计算器
+
 func (h *WsHandler) Compute(v string) {
 	result := regexp.MustCompile(`-?(\(-?)*\d+(\.\d+)?\)*$|-?((\(-?)*\d+(\.\d+)?\)*[\-/\+\*])+((\(-?)*\d+(\.\d+)?\)*)`).FindAllString(v, -1)
 	for _, s := range result {
