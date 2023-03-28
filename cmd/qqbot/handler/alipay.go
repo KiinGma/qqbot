@@ -35,7 +35,7 @@ func GetAlipayPage(h *WsHandler) {
 		fmt.Println(err)
 		return
 	}
-	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://116.25.250.174:8081/pay/`+pay.LinkId))
+	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+h.appConfig.APIHost+":"+h.appConfig.ServerPort+`/pay/`+pay.LinkId))
 }
 
 //封装网页支付接口,并返回二维码

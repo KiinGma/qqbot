@@ -36,6 +36,12 @@ type Config struct {
 	AlipayPriKey     string `mapstructure:"ALIPAY_PRI_KEY"`
 	AlipayPubKey     string `mapstructure:"ALIPAY_PUB_KEY"`
 	AlipayEncryptKey string `mapstructure:"ALIPAY_ENCRYPT_KEY"`
+
+	LOLAuth               string `mapstructure:"LOL_AUTH"`
+	LOLReferer1           string `mapstructure:"LOL_REF1"`
+	LOLSearchPlayerUrl    string `mapstructure:"LOL_SEARCH_PLAYER_URL"`
+	LOLGetBattleListUrl   string `mapstructure:"LOL_GET_BATTLE_LIST_URL"`
+	LOLGetBattleDetailUrl string `mapstructure:"LOL_GET_BATTLE_DETAIL_URL"`
 }
 
 var appConfig *Config
@@ -51,7 +57,7 @@ func LoadCPGConfig() *Config {
 func readConfig() *Config {
 	config := Config{}
 
-	viper.SetConfigFile(`E:\work\qqbot-go\.env`)
+	viper.SetConfigFile(`.env`)
 	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
 	if err != nil {

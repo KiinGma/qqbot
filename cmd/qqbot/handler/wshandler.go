@@ -72,7 +72,7 @@ func (h *WsHandler) FriendHandler(msg []byte) {
 	h.sendId = senderId
 	if has {
 		if session == 4 {
-			LOLBind(h)
+
 		} else if session == 5 {
 			YuanShenBind(h)
 		}
@@ -94,7 +94,7 @@ func (h *WsHandler) GroupHandler(msg []byte) {
 	h.GroupKey = key
 	//判断是否是at机器人
 	if IsAtMe(resp) {
-		h.ChatGpt(resp)
+		go h.ChatGpt(resp)
 	}
 	CommonCommand(h, resp)
 	if SessionTypeMap[groupId] == 0 {
@@ -105,8 +105,6 @@ func (h *WsHandler) GroupHandler(msg []byte) {
 			switch v.Type {
 			case "Plain":
 				switch {
-				case strings.Index(v.Text, "LOL") != -1 || strings.Index(v.Text, "lol") != -1 || strings.Index(v.Text, "英雄联盟") != -1:
-					h.LOL()
 				/*case v.Text == "幸运骰子":
 				InitDiceGame(h)*/
 				case v.Text == "a":
@@ -136,6 +134,7 @@ func (h *WsHandler) GroupHandler(msg []byte) {
 					h.IntegrateLoot(resp)
 				default:
 					h.Shop()
+					go h.LOL()
 				}
 			}
 		}
@@ -166,9 +165,6 @@ func CommonCommand(h *WsHandler, resp models.RespMessage) {
 			case v.Text == "抽卡分析":
 				AnalyseGaChaLog(h)
 			case v.Text == "战绩" || regexp.MustCompile(`^战绩\*[0-9]+$`).MatchString(v.Text):
-				LOLGameList(h)
-			case v.Text == "隐藏分":
-				go QueueRating(h)
 			case v.Text == "禁言":
 				h.client.Mute(h.Gid, h.sendId, 10)
 			case regexp.MustCompile(`^消息[0-9]+$`).MatchString(v.Text):

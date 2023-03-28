@@ -1,19 +1,7 @@
 package handler
 
-import (
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
-	"github.com/imroc/req/v3"
-	"io"
-	"net/http"
-	"qqbot/cmd/qqbot/models"
-	"strings"
-	"time"
-)
-
 //扫码登录
-
+/*
 func PtQrLogin(h *WsHandler, gid, sendId uint64) {
 	qrsig := GetQrSig(h, gid, sendId)
 	qrToken := 0
@@ -132,3 +120,203 @@ func GetQrSig(h *WsHandler, gid, sendId uint64) string {
 	}
 	return ""
 }
+
+func LOLGameListOld(h *WsHandler) {
+	user := models.LOLUser{
+		Base: models.Base{
+			ID: h.sendId,
+		},
+	}
+	err := h.Ds.Common().GetOneWithFilter(user, &user)
+	if err != nil {
+		LOLRoseNotBind(h)
+		return
+	}
+	if user.Cookie == "" {
+		LOLRoseNotBind(h)
+		return
+	}
+	//更新一下lolMap
+	LOLMap = map[uint64]models.LOLUser{
+		h.sendId: user,
+	}
+	res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=matchList&areaId=1&accountId=` + user.AccountId + `&r1=matchList`)
+	if err != nil {
+		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
+		return
+	}
+	body, err := io.ReadAll(res.Body)
+	if len(body) < 15 {
+		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
+		return
+	}
+	body = body[15:]
+	//解析json
+	list := gjson.GetBytes(body, "msg.games").Array()
+	mcs := make([]models.MessageChain, 0)
+
+	//读取条数
+	limitOf := 1
+	text := h.resp.Data.MessageChain[1].Text
+	results := regexp.MustCompile(`战绩\*[0-9]+`).FindAllString(text, -1)
+	if len(results) != 0 {
+		ta := strings.Split(text, "*")
+		limitOf, _ = strconv.Atoi(ta[1])
+	}
+
+	if limitOf > 10 {
+		limitOf = 10
+	}
+
+	for k, v := range list {
+		if k == limitOf {
+			break
+		}
+
+		gameId := v.Get("gameId").String()
+		//https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=7183156532&r1=combatGains
+		//https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=7183505301&r1=combatGains
+		res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=` + gameId + `&r1=combatGains`)
+		if err != nil {
+			h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
+			return
+		}
+		body, err := io.ReadAll(res.Body)
+		body = body[17:]
+		//解析json
+		game := gjson.GetBytes(body, "msg.participants").Array()
+		if len(game) == 0 {
+			h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 战绩信息为空")
+		}
+		odermap := make(map[string]string)
+		gameCreationTime := time.Unix(gjson.GetBytes(body, "msg.gameInfo.gameCreationTime").Int()/1e3, 0).Format("2006-01-02 15:04:05")
+		gameMode := gjson.GetBytes(body, "msg.gameInfo.queueId").String()
+		gameMode, has := GameModes[gameMode]
+		if !has {
+			gameMode = "未知"
+		}
+		myTeam := ""
+		orderTeam := "200"
+		//json =
+		for _, v := range game {
+			teamId := v.Get("teamId").String()
+			//英雄
+			champion := Champions[v.Get("championId").Int()].SearchString
+			if champion == "" {
+				champion = v.Get("championId").String()
+			}
+			kills := v.Get("stats.kills").String()
+			deaths := v.Get("stats.deaths").String()
+			assists := v.Get("stats.assists").String()
+
+			if v.Get("currentAccountId").String() == LOLMap[h.sendId].AccountId {
+				//胜利还是失败
+				win := "失败"
+
+				if v.Get("stats.winner").Bool() {
+					win = "胜利"
+				}
+				//战绩
+				myTeam = teamId
+				if myTeam == "200" {
+					orderTeam = "100"
+				}
+
+				minionsKilled := v.Get("stats.minionsKilled").Int() + v.Get("stats.neutralMinionsKilled").Int()
+				goldEarned := v.Get("stats.goldEarned").String()
+
+				//隐藏分
+				queueRating := v.Get("queueRating").String()
+				//其他玩家隐藏分
+
+				//经济补刀
+				mcs = append(mcs, models.MessageChain{
+					Type: "Plain",
+					Text: fmt.Sprintf("%v : [ %v %v %v %v/%v/%v %v/%v刀 %v 隐藏分: %v ) ]\n\n", k+1, gameMode, win, champion, kills, deaths, assists, goldEarned, minionsKilled, gameCreationTime, queueRating),
+				})
+			} else {
+				summonerName := v.Get("summonerName").String()
+				queueRating := v.Get("queueRating").String()
+				if teamId == "100" {
+					odermap["100"] += "\n[ " + summonerName + " * " + champion + fmt.Sprintf("  %v/%v/%v", kills, deaths, assists) + " 隐藏分: " + queueRating + " ]\n"
+				} else {
+					odermap["200"] += "\n[ " + summonerName + " * " + champion + fmt.Sprintf("  %v/%v/%v", kills, deaths, assists) + " 隐藏分: " + queueRating + " ]\n"
+				}
+			}
+		}
+		mcs = append(mcs, models.MessageChain{
+			Type: "Plain",
+			Text: fmt.Sprintf("该局其他玩家 :\n\n我方:\n%v\n敌方:\n%v\n", odermap[myTeam], odermap[orderTeam]),
+		})
+	}
+	h.client.SendGroupMessage(h.Gid, mcs)
+}
+
+// QueueRating 查询隐藏分
+func QueueRating(h *WsHandler) {
+	user := models.LOLUser{
+		Base: models.Base{
+			ID: h.sendId,
+		},
+	}
+	err := h.Ds.Common().GetOneWithFilter(user, &user)
+	if err != nil {
+		LOLRoseNotBind(h)
+		return
+	}
+	if user.Cookie == "" {
+		LOLRoseNotBind(h)
+		return
+	}
+	//更新一下lolMap
+	LOLMap = map[uint64]models.LOLUser{
+		h.sendId: user,
+	}
+	res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=matchList&areaId=1&accountId=` + user.AccountId + `&r1=matchList`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	body, err := io.ReadAll(res.Body)
+	body = body[15:]
+	//解析json
+	list5 := gjson.GetBytes(body, "msg.games").Array()
+	if len(list5) == 0 {
+		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 战绩信息为空")
+	}
+	mcs := make([]models.MessageChain, 0)
+	for k, v := range list5 {
+		if k == 1 {
+			break
+		}
+		gameId := v.Get("gameId").String()
+		res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=` + gameId + `&r1=combatGains`)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		body, err := io.ReadAll(res.Body)
+		body = body[17:]
+		//解析json
+		game := gjson.GetBytes(body, "msg.participants").Array()
+		for _, v := range game {
+			if v.Get("currentAccountId").String() == LOLMap[h.sendId].AccountId {
+				//隐藏分
+				queueRating := v.Get("queueRating").String()
+				//其他玩家隐藏分
+
+				//经济补刀
+				mcs = append(mcs, models.MessageChain{
+					Type:   "At",
+					Target: h.sendId,
+				})
+				mcs = append(mcs, models.MessageChain{
+					Type: "Plain",
+					Text: fmt.Sprintf(" 您目前最新的隐藏分为: %v ", queueRating),
+				})
+			}
+		}
+	}
+	h.client.SendGroupMessage(h.Gid, mcs)
+}
+*/

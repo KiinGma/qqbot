@@ -1,6 +1,10 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"github.com/tidwall/gjson"
+	"strings"
+)
 
 type LOLUser struct {
 	Base
@@ -9,6 +13,8 @@ type LOLUser struct {
 	Name      string `json:"name"`
 	Cookie    string `json:"cookie"`
 	AccountId string `json:"accountId"`
+	OpenId    string `json:"open_id"`
+	Area      int64  `json:"area"`
 }
 
 func (i *LOLUser) ToJson() []byte {
@@ -24,165 +30,226 @@ type LOLChampSearch struct {
 	ChampionId   string `json:"champion_id"`
 	SearchString string `json:"search_string"`
 }
+type LOLBattle struct {
+	GameId                     string `json:"game_id"`
+	GameStartTime              string `json:"game_start_time"`
+	GameTimePlayed             int    `json:"game_time_played"`
+	MapId                      int    `json:"map_id"`
+	GameQueueId                int    `json:"game_queue_id"`
+	WasMvp                     int    `json:"was_mvp"`
+	WasSvp                     int    `json:"was_svp"`
+	WasEarlySurrender          int    `json:"was_early_surrender"`
+	PlayGt25Mask               int    `json:"play_gt25_mask"`
+	GameServerVersion          string `json:"game_server_version"`
+	ChampionId                 int64  `json:"champion_id"`
+	Position                   string `json:"position"`
+	SkinIndex                  int    `json:"skin_index"`
+	GameScore                  int    `json:"game_score"`
+	TeamId                     string `json:"team_id"`
+	Win                        string `json:"win"`
+	Kills                      int    `json:"kills"`
+	Deaths                     int    `json:"deaths"`
+	Assists                    int    `json:"assists"`
+	GoldEarned                 int    `json:"gold_earned"`
+	WasSurrender               int    `json:"was_surrender"`
+	WasAfk                     int    `json:"was_afk"`
+	MostKills                  int    `json:"most_kills"`
+	MostAssists                int    `json:"most_assists"`
+	MostMinionsKilled          int    `json:"most_minions_killed"`
+	MostGoldEarned             int    `json:"most_gold_earned"`
+	MostDamageDealtToChampions int    `json:"most_damage_dealt_to_champions"`
+	MostTotalDamageTaken       int    `json:"most_total_damage_taken"`
+	MostTurretsKilled          int    `json:"most_turrets_killed"`
+	DoubleKills                int    `json:"double_kills"`
+	TripleKills                int    `json:"triple_kills"`
+	QuadraKills                int    `json:"quadra_kills"`
+	PentaKills                 int    `json:"penta_kills"`
+	UnrealKills                int    `json:"unreal_kills"`
+	GameLevel                  string `json:"game_level"`
+	WinWithLessTeammate        int    `json:"win_with_less_teammate"`
+	TeamMadeSize               int    `json:"team_made_size"`
+	BattleType                 int    `json:"battle_type"`
+}
 
-type Participant struct {
-	OriginalAccountId  int64  `json:"originalAccountId"`
-	OriginalPlatformId string `json:"originalPlatformId"`
-	CurrentAccountId   int64  `json:"currentAccountId"`
-	CurrentPlatformId  string `json:"currentPlatformId"`
-	TeamId             int    `json:"teamId"`
-	Spell1Id           int    `json:"spell1Id"`
-	Spell2Id           int    `json:"spell2Id"`
-	ChampionId         int    `json:"championId"`
-	SkinIndex          int    `json:"skinIndex"`
-	ProfileIconId      int    `json:"profileIconId"`
-	SummonerName       string `json:"summonerName"`
-	TeamParticipantId  int    `json:"teamParticipantId"`
-	QueueRating        int    `json:"queueRating"`
-	Stats              struct {
-		Win                             string `json:"win"`
-		Winner                          bool   `json:"winner"`
-		Leaver                          bool   `json:"leaver"`
-		TimePlayed                      int    `json:"timePlayed"`
-		TotalTimeSpentDisconnected      int    `json:"totalTimeSpentDisconnected"`
-		ChampLevel                      int    `json:"champLevel"`
-		Item0                           int    `json:"item0"`
-		Item1                           int    `json:"item1"`
-		Item2                           int    `json:"item2"`
-		Item3                           int    `json:"item3"`
-		Item4                           int    `json:"item4"`
-		Item5                           int    `json:"item5"`
-		Item6                           int    `json:"item6"`
-		Kills                           int    `json:"kills"`
-		DoubleKills                     int    `json:"doubleKills"`
-		TripleKills                     int    `json:"tripleKills"`
-		QuadraKills                     int    `json:"quadraKills"`
-		PentaKills                      int    `json:"pentaKills"`
-		UnrealKills                     int    `json:"unrealKills"`
-		LargestKillingSpree             int    `json:"largestKillingSpree"`
-		LargestMultiKill                int    `json:"largestMultiKill"`
-		KillingSprees                   int    `json:"killingSprees"`
-		LongestTimeSpentLiving          int    `json:"longestTimeSpentLiving"`
-		Deaths                          int    `json:"deaths"`
-		TotalTimeSpentDead              int    `json:"totalTimeSpentDead"`
-		Assists                         int    `json:"assists"`
-		TotalDamageDealt                int    `json:"totalDamageDealt"`
-		TotalDamageTaken                int    `json:"totalDamageTaken"`
-		LargestCriticalStrike           int    `json:"largestCriticalStrike"`
-		TotalHeal                       int    `json:"totalHeal"`
-		DamageSelfMitigated             int    `json:"damageSelfMitigated"`
-		DamageDealtToObjectives         int    `json:"damageDealtToObjectives"`
-		DamageDealtToTurrets            int    `json:"damageDealtToTurrets"`
-		VisionScore                     int    `json:"visionScore"`
-		TimeCCingOthers                 int    `json:"timeCCingOthers"`
-		TotalTimeCrowdControlDealt      int    `json:"totalTimeCrowdControlDealt"`
-		TotalUnitsHealed                int    `json:"totalUnitsHealed"`
-		MinionsKilled                   int    `json:"minionsKilled"`
-		NeutralMinionsKilled            int    `json:"neutralMinionsKilled"`
-		NeutralMinionsKilledTeamJungle  int    `json:"neutralMinionsKilledTeamJungle"`
-		NeutralMinionsKilledEnemyJungle int    `json:"neutralMinionsKilledEnemyJungle"`
-		GoldEarned                      int    `json:"goldEarned"`
-		GoldSpent                       int    `json:"goldSpent"`
-		CombatPlayerScore               int    `json:"combatPlayerScore"`
-		ObjectivePlayerScore            int    `json:"objectivePlayerScore"`
-		PlayerScore0                    int    `json:"playerScore0"`
-		PlayerScore1                    int    `json:"playerScore1"`
-		PlayerScore2                    int    `json:"playerScore2"`
-		PlayerScore3                    int    `json:"playerScore3"`
-		PlayerScore4                    int    `json:"playerScore4"`
-		PlayerScore5                    int    `json:"playerScore5"`
-		PlayerScore6                    int    `json:"playerScore6"`
-		PlayerScore7                    int    `json:"playerScore7"`
-		PlayerScore8                    int    `json:"playerScore8"`
-		PlayerScore9                    int    `json:"playerScore9"`
-		PlayerScore10                   int    `json:"playerScore10"`
-		PlayerScore11                   int    `json:"playerScore11"`
-		TotalPlayerScore                int    `json:"totalPlayerScore"`
-		TotalScoreRank                  int    `json:"totalScoreRank"`
-		NodeCapture                     int    `json:"nodeCapture"`
-		NodeCaptureAssist               int    `json:"nodeCaptureAssist"`
-		NodeNeutralize                  int    `json:"nodeNeutralize"`
-		NodeNeutralizeAssist            int    `json:"nodeNeutralizeAssist"`
-		TeamObjective                   int    `json:"teamObjective"`
-		MagicDamageDealtToChampions     int    `json:"magicDamageDealtToChampions"`
-		PhysicalDamageDealtToChampions  int    `json:"physicalDamageDealtToChampions"`
-		TrueDamageDealtToChampions      int    `json:"trueDamageDealtToChampions"`
-		TotalDamageDealtToChampions     int    `json:"totalDamageDealtToChampions"`
-		VisionWardsBoughtInGame         int    `json:"visionWardsBoughtInGame"`
-		SightWardsBoughtInGame          int    `json:"sightWardsBoughtInGame"`
-		WardsPlaced                     int    `json:"wardsPlaced"`
-		WardsKilled                     int    `json:"wardsKilled"`
-		MagicDamageDealt                int    `json:"magicDamageDealt"`
-		PhysicalDamageDealt             int    `json:"physicalDamageDealt"`
-		TrueDamageDealt                 int    `json:"trueDamageDealt"`
-		MagicDamageTaken                int    `json:"magicDamageTaken"`
-		PhysicalDamageTaken             int    `json:"physicalDamageTaken"`
-		TrueDamageTaken                 int    `json:"trueDamageTaken"`
-		FirstBloodKill                  bool   `json:"firstBloodKill"`
-		FirstBloodAssist                bool   `json:"firstBloodAssist"`
-		FirstTowerKill                  bool   `json:"firstTowerKill"`
-		FirstTowerAssist                bool   `json:"firstTowerAssist"`
-		FirstInhibitorKill              bool   `json:"firstInhibitorKill"`
-		FirstInhibitorAssist            bool   `json:"firstInhibitorAssist"`
-		WasAfk                          bool   `json:"wasAfk"`
-		WasAfkAfterFailedSurrender      bool   `json:"wasAfkAfterFailedSurrender"`
-		InhibitorKills                  int    `json:"inhibitorKills"`
-		TowerKills                      int    `json:"towerKills"`
-		GameEndedInEarlySurrender       bool   `json:"gameEndedInEarlySurrender"`
-		GameEndedInSurrender            bool   `json:"gameEndedInSurrender"`
-		CausedEarlySurrender            bool   `json:"causedEarlySurrender"`
-		EarlySurrenderAccomplice        bool   `json:"earlySurrenderAccomplice"`
-		TeamEarlySurrendered            bool   `json:"teamEarlySurrendered"`
-		ChampionTransform               int    `json:"championTransform"`
-		Spell1Casts                     int    `json:"spell1Casts"`
-		Spell2Casts                     int    `json:"spell2Casts"`
-		Spell3Casts                     int    `json:"spell3Casts"`
-		Spell4Casts                     int    `json:"spell4Casts"`
-		Summoner1Casts                  int    `json:"summoner1Casts"`
-		Summoner2Casts                  int    `json:"summoner2Casts"`
-		Perk0                           int    `json:"perk0"`
-		Perk0Var1                       int    `json:"perk0Var1"`
-		Perk0Var2                       int    `json:"perk0Var2"`
-		Perk0Var3                       int    `json:"perk0Var3"`
-		Perk1                           int    `json:"perk1"`
-		Perk1Var1                       int    `json:"perk1Var1"`
-		Perk1Var2                       int    `json:"perk1Var2"`
-		Perk1Var3                       int    `json:"perk1Var3"`
-		Perk2                           int    `json:"perk2"`
-		Perk2Var1                       int    `json:"perk2Var1"`
-		Perk2Var2                       int    `json:"perk2Var2"`
-		Perk2Var3                       int    `json:"perk2Var3"`
-		Perk3                           int    `json:"perk3"`
-		Perk3Var1                       int    `json:"perk3Var1"`
-		Perk3Var2                       int    `json:"perk3Var2"`
-		Perk3Var3                       int    `json:"perk3Var3"`
-		Perk4                           int    `json:"perk4"`
-		Perk4Var1                       int    `json:"perk4Var1"`
-		Perk4Var2                       int    `json:"perk4Var2"`
-		Perk4Var3                       int    `json:"perk4Var3"`
-		Perk5                           int    `json:"perk5"`
-		Perk5Var1                       int    `json:"perk5Var1"`
-		Perk5Var2                       int    `json:"perk5Var2"`
-		Perk5Var3                       int    `json:"perk5Var3"`
-		PerkPrimaryStyle                int    `json:"perkPrimaryStyle"`
-		PerkSubStyle                    int    `json:"perkSubStyle"`
-		ChampionMissionStat0            int    `json:"championMissionStat0"`
-		ChampionMissionStat1            int    `json:"championMissionStat1"`
-		ChampionMissionStat2            int    `json:"championMissionStat2"`
-		ChampionMissionStat3            int    `json:"championMissionStat3"`
-		TotalHealsOnTeammates           int    `json:"totalHealsOnTeammates"`
-		TotalDamageShieldedOnTeammates  int    `json:"totalDamageShieldedOnTeammates"`
-		TeamPosition                    string `json:"teamPosition"`
-		IndividualPosition              string `json:"individualPosition"`
-		StatPerk0                       int    `json:"statPerk0"`
-		StatPerk1                       int    `json:"statPerk1"`
-		StatPerk2                       int    `json:"statPerk2"`
-	} `json:"stats"`
-	TimeAddedToQueue int64  `json:"timeAddedToQueue"`
-	SummonerId       int64  `json:"summonerId"`
-	WardSkin         int    `json:"wardSkin"`
-	ParticipantId    int    `json:"participantId"`
-	PartnerId        string `json:"partnerId"`
-	ObfuscatedIP     string `json:"obfuscatedIP"`
-	SummonerLevel    int    `json:"summonerLevel"`
+func (b *LOLBattle) ToBattles(data []byte) (battles []LOLBattle) {
+	err := json.Unmarshal(data, &battles)
+	if err != nil {
+		return nil
+	}
+	return
+}
+
+type BanInfo struct {
+	ChampionId int    `json:"championId"`
+	PickTurn   int    `json:"pickTurn"`
+	TeamId     string `json:"teamId"`
+}
+
+type TeamDetail struct {
+	BanInfoList        []BanInfo `json:"banInfoList"`
+	IsSurrender        int       `json:"isSurrender"`
+	TeamElo            int       `json:"teamElo"`
+	TeamId             string    `json:"teamId"`
+	TotalAssists       int       `json:"totalAssists"`
+	TotalBaronKills    int       `json:"totalBaronKills"`
+	TotalBaseKilled    int       `json:"totalBaseKilled"`
+	TotalDampenKilled  int       `json:"totalDampenKilled"`
+	TotalDeaths        int       `json:"totalDeaths"`
+	TotalDragonKills   int       `json:"totalDragonKills"`
+	TotalGoldEarned    int       `json:"totalGoldEarned"`
+	TotalKills         int       `json:"totalKills"`
+	TotalTurretsKilled int       `json:"totalTurretsKilled"`
+	Win                string    `json:"win"`
+}
+type PlayerDetail struct {
+	PERK0                     int          `json:"PERK0"`
+	PERK1                     int          `json:"PERK1"`
+	PERK2                     int          `json:"PERK2"`
+	PERK3                     int          `json:"PERK3"`
+	PERK4                     int          `json:"PERK4"`
+	PERK5                     int          `json:"PERK5"`
+	STATPERK0                 int          `json:"STAT_PERK_0"`
+	STATPERK1                 int          `json:"STAT_PERK_1"`
+	STATPERK2                 int          `json:"STAT_PERK_2"`
+	AllMinionsKilled          int          `json:"allMinionsKilled"`
+	Assists                   int          `json:"assists"`
+	BaronKills                int          `json:"baronKills"`
+	BarracksKilled            int          `json:"barracksKilled"`
+	BattleHonour              BattleHonour `json:"battleHonour"`
+	ChampionId                int64        `json:"championId"`
+	ChampionUsedExp           int          `json:"championUsedExp"`
+	ChampionsKilled           int          `json:"championsKilled"`
+	ConsumablesPurchased      int          `json:"consumablesPurchased"`
+	DoubleKills               int          `json:"doubleKills"`
+	DragonKills               int          `json:"dragonKills"`
+	Exp                       int          `json:"exp"`
+	GameScore                 int          `json:"gameScore"`
+	GoldEarned                int          `json:"goldEarned"`
+	GoldSpent                 int          `json:"goldSpent"`
+	HqKilled                  int          `json:"hqKilled"`
+	Item0                     int          `json:"item0"`
+	Item1                     int          `json:"item1"`
+	Item2                     int          `json:"item2"`
+	Item3                     int          `json:"item3"`
+	Item4                     int          `json:"item4"`
+	Item5                     int          `json:"item5"`
+	Item6                     int          `json:"item6"`
+	ItemsPurchased            int          `json:"itemsPurchased"`
+	KeystoneId                int          `json:"keystoneId"`
+	KillingSpress             int          `json:"killingSpress"`
+	LargestCriticalStrike     int          `json:"largestCriticalStrike"`
+	LargestKillingSpree       int          `json:"largestKillingSpree"`
+	LargestMultiKill          int          `json:"largestMultiKill"`
+	Level                     int          `json:"level"`
+	LoginIp                   string       `json:"loginIp"`
+	LolId                     string       `json:"lolId"`
+	Lpl                       string       `json:"lpl"`
+	MagicDamageDealtPlayer    int          `json:"magicDamageDealtPlayer"`
+	MagicDamageTaken          int          `json:"magicDamageTaken"`
+	MagicDamageToChampions    int          `json:"magicDamageToChampions"`
+	MinionsKilled             int          `json:"minionsKilled"`
+	Name                      string       `json:"name"`
+	NeutralMinionsKilled      int          `json:"neutralMinionsKilled"`
+	NumDeaths                 int          `json:"numDeaths"`
+	Openid                    string       `json:"openid"`
+	PentaKills                int          `json:"pentaKills"`
+	PerkStyle                 int          `json:"perkStyle"`
+	PerkSubStyle              int          `json:"perkSubStyle"`
+	PhysicalDamageDealtPlayer int          `json:"physicalDamageDealtPlayer"`
+	PhysicalDamageTaken       int          `json:"physicalDamageTaken"`
+	PhysicalDamageToChampions int          `json:"physicalDamageToChampions"`
+	Position                  string       `json:"position"`
+	PuuId                     string       `json:"puuId"`
+	QuadraKills               int          `json:"quadraKills"`
+	SightWardsBoughtInGame    int          `json:"sightWardsBoughtInGame"`
+	SkinIndex                 int          `json:"skinIndex"`
+	Spell1Cast                int          `json:"spell1Cast"`
+	Spell2Cast                int          `json:"spell2Cast"`
+	Spell3Cast                int          `json:"spell3Cast"`
+	Spell4Cast                int          `json:"spell4Cast"`
+	SummonSpell1Cast          int          `json:"summonSpell1Cast"`
+	SummonSpell1Id            int          `json:"summonSpell1Id"`
+	SummonSpell2Cast          int          `json:"summonSpell2Cast"`
+	SummonSpell2Id            int          `json:"summonSpell2Id"`
+	TeamId                    string       `json:"teamId"`
+	TeamMadeSize              int          `json:"teamMadeSize"`
+	TimeCcingOthers           int          `json:"timeCcingOthers"`
+	TotalDamageDealt          int          `json:"totalDamageDealt"`
+	TotalDamageTaken          int          `json:"totalDamageTaken"`
+	TotalDamageToChampions    int          `json:"totalDamageToChampions"`
+	TotalHealth               int          `json:"totalHealth"`
+	TotalTimeSpentDead        int          `json:"totalTimeSpentDead"`
+	TripleKills               int          `json:"tripleKills"`
+	TrueDemageToChampions     int          `json:"trueDemageToChampions"`
+	TurretsKilled             int          `json:"turretsKilled"`
+	UinId                     string       `json:"uinId"`
+	UnrealKills               int          `json:"unrealKills"`
+	VisionScore               int          `json:"visionScore"`
+	VisionWardsBoughtInGame   int          `json:"visionWardsBoughtInGame"`
+	WardKilled                int          `json:"wardKilled"`
+	WardPlaced                int          `json:"wardPlaced"`
+	WardPlacedDetector        int          `json:"wardPlacedDetector"`
+	WardSkinIndex             int          `json:"wardSkinIndex"`
+	WasAfk                    int          `json:"wasAfk"`
+	Win                       string       `json:"win"`
+}
+
+type BattleHonour struct {
+	GameLevel                            string `json:"gameLevel"`
+	IsDoubleKills                        int    `json:"isDoubleKills"`
+	IsGodlike                            int    `json:"isGodlike"`
+	IsLargestAllMinionsKilled            int    `json:"isLargestAllMinionsKilled"`
+	IsLargestAssists                     int    `json:"isLargestAssists"`
+	IsLargestChampionsKilled             int    `json:"isLargestChampionsKilled"`
+	IsLargestGoldEarned                  int    `json:"isLargestGoldEarned"`
+	IsLargestTotalDamageDealtToChampions int    `json:"isLargestTotalDamageDealtToChampions"`
+	IsLargestTotalDamageTaken            int    `json:"isLargestTotalDamageTaken"`
+	IsLargestTurretsKilled               int    `json:"isLargestTurretsKilled"`
+	IsMvp                                int    `json:"isMvp"`
+	IsPentaKills                         int    `json:"isPentaKills"`
+	IsQuadraKills                        int    `json:"isQuadraKills"`
+	IsSvp                                int    `json:"isSvp"`
+	IsTripleKills                        int    `json:"isTripleKills"`
+	IsUnrealKills                        int    `json:"isUnrealKills"`
+	IsWinWithLessTeammate                int    `json:"isWinWithLessTeammate"`
+	IsZeroDeath                          int    `json:"isZeroDeath"`
+}
+
+type BattleDetail struct {
+	AreaId            string         `json:"area_id"`
+	GameId            string         `json:"game_id"`
+	GameStartTime     string         `json:"game_start_time"`
+	GameTimePlayed    int            `json:"game_time_played"`
+	MapId             int            `json:"map_id"`
+	GameQueueId       int            `json:"game_queue_id"`
+	GameMode          string         `json:"game_mode"`
+	GameType          string         `json:"game_type"`
+	PlatformId        string         `json:"platform_id"`
+	WasEarlySurrender int            `json:"was_early_surrender"`
+	PlayGt25Mask      int            `json:"play_gt25_mask"`
+	GameServerVersion string         `json:"game_server_version"`
+	TeamDetails       []TeamDetail   `json:"team_details"`
+	PlayerDetails     []PlayerDetail `json:"player_details"`
+}
+
+func (bd *BattleDetail) ToStruct(data []byte) {
+	json.Unmarshal(data, bd)
+}
+
+//
+
+type GameLevel struct {
+	Tier         string `json:"tier"`
+	LeaguePoints string `json:"league_points"`
+	Rank         string `json:"rank"`
+}
+
+//原始game level参数转成struct
+
+func (g *GameLevel) ToStruct(data string) {
+	//原始的数据包含了斜杠要格式化
+	data = strings.ReplaceAll(data, `""`, `"`)
+	g.Tier = gjson.Get(data, "tier").String()
+	g.Rank = gjson.Get(data, "rank").String()
+	g.LeaguePoints = gjson.Get(data, "league_points").String()
 }

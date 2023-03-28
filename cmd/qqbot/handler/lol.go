@@ -1,15 +1,13 @@
 package handler
 
 import (
-	"crypto/rand"
-	"errors"
 	"fmt"
 	"github.com/imroc/req/v3"
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 	"io"
-	"math/big"
+	"net/url"
 	"qqbot/cmd/qqbot/models"
-	"qqbot/cmd/qqbot/repository"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,347 +17,406 @@ import (
 var LOLMap map[uint64]models.LOLUser
 
 func (h *WsHandler) CookieOnline() {
-	//定时从数据库获取用户来轮询保证cookie活性
-	for {
-		users := make([]models.LOLUser, 0)
-		filters := repository.Filters{
-			NeFilter: map[string]interface{}{
-				"cookie": "",
-			},
-		}
-		h.Ds.Common().GetAllWithFilter(filters, models.LOLUser{}, &users)
-		for _, v := range users {
-			accountId, err := CheckCookie(v.Cookie)
-			if err != nil || accountId == "" {
-				v.Cookie = ""
-				h.Ds.Common().Update(nil, v)
-				h.client.SendGroupMessageWithString(v.Gid, v.ID, fmt.Sprintf(" 您的英雄联盟绑定已到期"))
-				continue
-			}
-			//获取最新战绩
-			res, err := req.SetHeader("Cookie", v.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=matchList&areaId=1&accountId=` + accountId + `&r1=matchList`)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			body, err := io.ReadAll(res.Body)
-			if len(body) < 15 {
-				continue
-			}
-			body = body[15:]
-			games := gjson.GetBytes(body, "msg.games").Array()
-			if len(games) == 0 {
-				continue
-			}
-			gameId := games[0].Get("gameId").String()
-			h.Ds.GameService().SteLoLGameId(123)
-			g, e := h.Ds.GameService().GetLoLNewGameId()
-			fmt.Println(g, e)
-			//跳过已经记录的游戏
-			if gameId == v.LastGame {
-				continue
-			}
-			v.LastGame = gameId
-			//根据玩的模式加一张卡
-			queue := games[0].Get("queue").String()
-			b, _ := rand.Int(rand.Reader, big.NewInt(1000))
-			switch queue {
-			case "420", "440":
-				//50%几率
-				if b.Int64() <= 250 {
-					_, p, _ := h.Ds.GameService().AddBack(v.ID, 1, 1)
-					h.client.SendGroupMessageWithString(v.Gid, v.ID, fmt.Sprintf(" 在峡谷逛GAI时 , 意外捡到一张 %v", p.Name))
-				}
-			case "1900", "450", "430", "1400":
-				//30%几率
-				if b.Int64() <= 150 {
-					_, p, _ := h.Ds.GameService().AddBack(v.ID, 1, 1)
-					h.client.SendGroupMessageWithString(v.Gid, v.ID, fmt.Sprintf(" 在峡谷逛GAI时 , 意外捡到一张 %v", p.Name))
-				}
-			}
-			h.Ds.Common().Update(nil, v)
-			//结算系统
-			//获取当前最后的游戏id
-
-		}
-		time.Sleep(time.Minute)
-	}
 }
-
-//英雄联盟团队结算
-
-func LoLTeamStatement(h *WsHandler, gid, uid uint64) {
-	//获取自己团队信息
-	gameId, err := h.Ds.GameService().GetLoLNewGameId()
-	fmt.Println(gameId, err)
-}
-
 func (h *WsHandler) LOL() {
 	for _, v := range h.resp.Data.MessageChain {
 		if v.Type == "Plain" {
 			switch {
-			case v.Text == "lol战绩" || v.Text == "英雄联盟战绩":
+			case v.Text == "战绩" || v.Text == "英雄联盟战绩":
+				GetLOLGame(h)
+			case v.Text == "战绩列表":
 				LOLGameList(h)
-			case v.Text == "lol绑定" || v.Text == "LOL绑定" || v.Text == "英雄联盟绑定":
-				go PtQrLogin(h, h.Gid, h.sendId)
+			case regexp.MustCompile(`^lol绑定#.*?#.*`).MatchString(v.Text):
+				LOLBind(h)
 			}
 		}
 	}
 }
 
 func LOLRoseNotBind(h *WsHandler) {
-	h.client.SendGroupMessageWithString(h.Gid, 0, fmt.Sprintf("你的角色未绑定·请回复:lol绑定 或 英雄联盟绑定,进行绑定"))
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 您的账号未绑定,请输入 "lol绑定#您的游戏名称#服务器名称" 进行绑定\n 注:一个qq号只能绑定一次`))
+}
+func LOLRoseNotBattle(h *WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 查无战绩")
 }
 
-// QueueRating 查询隐藏分
-func QueueRating(h *WsHandler) {
+/*
+
+ 1 : [ 灵活组排 胜利 皮城女警·凯特琳 7/3/8 11486/189刀 2023-03-05 22:08:17 隐藏分: 1031 ) ]
+
+该局其他玩家 :
+
+我方:
+
+[ 带你去峡谷看螃蟹 * 奥恩·山隐之焰  2/4/16 隐藏分: 1257 ]
+
+[ 打我你必歪琴 * 暗黑元首·辛德拉  8/0/11 隐藏分: 1694 ]
+
+[ Ndl疯狂卡丁车 * 邪恶小法师·维迦  7/1/12 隐藏分: 1195 ]
+
+[ 屠天杀地之爹王 * 200  11/2/9 隐藏分: 1672 ]
+
+敌方:
+
+[ 零笙ZER0 * 生化魔人·扎克  2/9/3 隐藏分: 1257 ]
+
+[ 快来救救你的蓝 * 虚空之女·卡莎  2/7/1 隐藏分: 1545 ]
+
+[ 时速九厘米 * 涤魂圣枪·赛娜  1/4/4 隐藏分: 1207 ]
+
+[ 黑色二手车真宽敞 * 德玛西亚之力·盖伦  5/5/0 隐藏分: 1106 ]
+
+[ 九溪悦 * 卡牌大师·崔斯特  0/10/5 隐藏分: 1766 ]
+
+
+*/
+
+func GetLOLGame(h *WsHandler) {
+	//先获取最后一局游戏的游戏id
 	user := models.LOLUser{
 		Base: models.Base{
 			ID: h.sendId,
 		},
 	}
-	err := h.Ds.Common().GetOneWithFilter(user, &user)
-	if err != nil {
+	err := h.Ds.Common().GetByID(h.sendId, &user)
+	if err == gorm.ErrRecordNotFound {
+		//未绑定
 		LOLRoseNotBind(h)
 		return
 	}
-	if user.Cookie == "" {
-		LOLRoseNotBind(h)
+	bs := LOLGetBattleListById(h, user.OpenId, "1")
+	if len(bs) != 1 {
+		LOLRoseNotBattle(h)
 		return
 	}
-	//更新一下lolMap
-	LOLMap = map[uint64]models.LOLUser{
-		h.sendId: user,
-	}
-	res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=matchList&areaId=1&accountId=` + user.AccountId + `&r1=matchList`)
+	gameId := bs[0].GameId
+
+	bd := LOLGetBattleByGameId(h, user.OpenId, gameId)
+	//回显战绩信息
+	fmt.Println(bd)
+	ms := make([]models.MessageChain, 0)
+	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
+	//时间戳转换
+	timestamp, err := strconv.Atoi(bd.GameStartTime)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	body, err := io.ReadAll(res.Body)
-	body = body[15:]
-	//解析json
-	list5 := gjson.GetBytes(body, "msg.games").Array()
-	if len(list5) == 0 {
-		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 战绩信息为空")
+	tm := time.Unix(int64(timestamp/1000), 0) // 将Unix时间戳转为time.Time类型
+	startTime := tm.Format("01-02 15:04:05")
+	endTime := tm.Add(time.Duration(bd.GameTimePlayed) * time.Second).Format("01-02 15:04:05")
+	if len(bd.TeamDetails) != 2 {
+		return
 	}
-	mcs := make([]models.MessageChain, 0)
-	for k, v := range list5 {
-		if k == 1 {
-			break
-		}
-		gameId := v.Get("gameId").String()
-		res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=` + gameId + `&r1=combatGains`)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		body, err := io.ReadAll(res.Body)
-		body = body[17:]
-		//解析json
-		game := gjson.GetBytes(body, "msg.participants").Array()
-		for _, v := range game {
-			if v.Get("currentAccountId").String() == LOLMap[h.sendId].AccountId {
-				//隐藏分
-				queueRating := v.Get("queueRating").String()
-				//其他玩家隐藏分
+	//灵活组排 时间-时间 比分
+	title := fmt.Sprintf("\n\n[  %v 开始时间:%v  结束时间:%v 比分: %v : %v  ]", GameModes[strconv.Itoa(bs[0].GameQueueId)], startTime, endTime, bd.TeamDetails[0].TotalKills, bd.TeamDetails[1].TotalKills)
+	if bd.WasEarlySurrender == 1 {
+		//提前投降
+		title += " 提前投降"
+	}
+	ms = append(ms, models.MessageChain{Type: "Plain", Text: title})
 
-				//经济补刀
-				mcs = append(mcs, models.MessageChain{
-					Type:   "At",
-					Target: h.sendId,
-				})
-				mcs = append(mcs, models.MessageChain{
-					Type: "Plain",
-					Text: fmt.Sprintf(" 您目前最新的隐藏分为: %v ", queueRating),
-				})
+	team100 := make([]models.PlayerDetail, 0)
+	team200 := make([]models.PlayerDetail, 0)
+	//规整队伍
+	for _, v := range bd.PlayerDetails {
+		if v.TeamId == "100" {
+			team100 = append(team100, v)
+		} else {
+			team200 = append(team200, v)
+		}
+	}
+
+	for _, v := range bd.TeamDetails {
+		//显示队伍头信息,kda 金钱  elo
+		IsSurrender := ""
+		if v.IsSurrender == 1 {
+			if v.Win == "Fail" {
+				IsSurrender += "\n投降\n*****"
+			}
+		}
+		title = fmt.Sprintf("\n\n*****************************\n  %v %v/%v/%v %v 队伍平均elo隐藏分:%v  \n*****************************%v", GameTeamWin[v.Win], v.TotalKills, v.TotalDeaths, v.TotalAssists, v.TotalGoldEarned, v.TeamElo, IsSurrender)
+
+		ms = append(ms, models.MessageChain{Type: "Plain", Text: title})
+		if v.TeamId == "100" {
+			//显示100队伍
+			for _, play := range team100 {
+				name, _ := url.QueryUnescape(play.Name)
+				Champion, has := Champions[play.ChampionId]
+				ChampionStr := ""
+				if has {
+					ChampionStr = Champion.SearchString
+				} else {
+					ChampionStr = Champion.ChampionId
+				}
+				l := models.GameLevel{}
+				l.ToStruct(play.BattleHonour.GameLevel)
+				text := fmt.Sprintf("\n\n [ %v ] %v %v %v/%v/%v 评分:%.2f", TransformGameLevel(l), name, ChampionStr, play.ChampionsKilled, play.NumDeaths, play.Assists, float64(play.GameScore)/10000)
+				if play.WasAfk == 1 {
+					text += " [跑路]"
+				}
+				if play.BattleHonour.IsMvp == 1 {
+					text += " [mvp]"
+				}
+				if play.BattleHonour.IsSvp == 1 {
+					text += " [svp]"
+				}
+				if play.BattleHonour.IsPentaKills == 1 {
+					text += " [五杀]"
+				}
+				ms = append(ms, models.MessageChain{Type: "Plain", Text: text})
+			}
+
+		} else {
+			//显示200队伍
+			for _, play := range team200 {
+				name, _ := url.QueryUnescape(play.Name)
+				Champion, has := Champions[play.ChampionId]
+				ChampionStr := ""
+				if has {
+					ChampionStr = Champion.SearchString
+				} else {
+					ChampionStr = Champion.ChampionId
+				}
+				l := models.GameLevel{}
+				l.ToStruct(play.BattleHonour.GameLevel)
+				text := fmt.Sprintf("\n\n [ %v ] %v %v %v/%v/%v 评分:%.2f", TransformGameLevel(l), name, ChampionStr, play.ChampionsKilled, play.NumDeaths, play.Assists, float64(play.GameScore)/10000)
+				if play.WasAfk == 1 {
+					text += " [跑路]"
+				}
+				if play.BattleHonour.IsMvp == 1 {
+					text += " [mvp]"
+				}
+				if play.BattleHonour.IsSvp == 1 {
+					text += " [svp]"
+				}
+				if play.BattleHonour.IsPentaKills == 1 {
+					text += " [五杀]"
+				}
+				ms = append(ms, models.MessageChain{Type: "Plain", Text: text})
 			}
 		}
 	}
-	h.client.SendGroupMessage(h.Gid, mcs)
+	if len(ms) == 1 {
+		LOLRoseNotBattle(h)
+	} else {
+		h.client.SendGroupMessage(h.Gid, ms)
+	}
 }
 
-// LOLGameList 获取战绩信息
+// LOLGameList 获取战绩信息,战绩列表
 func LOLGameList(h *WsHandler) {
+	//根据qq号获取游戏id
 	user := models.LOLUser{
 		Base: models.Base{
 			ID: h.sendId,
 		},
 	}
-	err := h.Ds.Common().GetOneWithFilter(user, &user)
-	if err != nil {
+	err := h.Ds.Common().GetByID(h.sendId, &user)
+	if err == gorm.ErrRecordNotFound {
+		//未绑定
 		LOLRoseNotBind(h)
 		return
 	}
-	if user.Cookie == "" {
-		LOLRoseNotBind(h)
-		return
-	}
-	//更新一下lolMap
-	LOLMap = map[uint64]models.LOLUser{
-		h.sendId: user,
-	}
-	res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=matchList&areaId=1&accountId=` + user.AccountId + `&r1=matchList`)
-	if err != nil {
-		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
-		return
-	}
-	body, err := io.ReadAll(res.Body)
-	if len(body) < 15 {
-		h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
-		return
-	}
-	body = body[15:]
-	//解析json
-	list := gjson.GetBytes(body, "msg.games").Array()
-	mcs := make([]models.MessageChain, 0)
-
-	//读取条数
-	limitOf := 1
-	text := h.resp.Data.MessageChain[1].Text
-	results := regexp.MustCompile(`战绩\*[0-9]+`).FindAllString(text, -1)
-	if len(results) != 0 {
-		ta := strings.Split(text, "*")
-		limitOf, _ = strconv.Atoi(ta[1])
-	}
-
-	if limitOf > 10 {
-		limitOf = 10
-	}
-
-	for k, v := range list {
-		if k == limitOf {
+	bs := LOLGetBattleListById(h, user.OpenId, "9")
+	ms := make([]models.MessageChain, 0)
+	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
+	for k, v := range bs {
+		if k == 8 {
 			break
 		}
-
-		gameId := v.Get("gameId").String()
-		//https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=7183156532&r1=combatGains
-		//https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=7183505301&r1=combatGains
-		res, err := req.SetHeader("Cookie", user.Cookie).Get(`https://lol.sw.game.qq.com/lol/api/?c=Battle&a=combatGains&areaId=1&gameId=` + gameId + `&r1=combatGains`)
-		if err != nil {
-			h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 无法从服务器获取到您的战绩信息")
-			return
+		//调整回显信息,段位,英雄,模式,胜负,战绩,评分,mvp
+		Champion, has := Champions[v.ChampionId]
+		ChampionStr := ""
+		if has {
+			ChampionStr = Champion.SearchString
+		} else {
+			ChampionStr = Champion.ChampionId
 		}
-		body, err := io.ReadAll(res.Body)
-		body = body[17:]
-		//解析json
-		game := gjson.GetBytes(body, "msg.participants").Array()
-		if len(game) == 0 {
-			h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 战绩信息为空")
-		}
-		odermap := make(map[string]string)
-		gameCreationTime := time.Unix(gjson.GetBytes(body, "msg.gameInfo.gameCreationTime").Int()/1e3, 0).Format("2006-01-02 15:04:05")
-		gameMode := gjson.GetBytes(body, "msg.gameInfo.queueId").String()
-		gameMode, has := GameModes[gameMode]
-		if !has {
-			gameMode = "未知"
-		}
-		myTeam := ""
-		orderTeam := "200"
-		//json =
-		for _, v := range game {
-			teamId := v.Get("teamId").String()
-			//英雄
-			champion := Champions[v.Get("championId").Int()].SearchString
-			if champion == "" {
-				champion = v.Get("championId").String()
+		l := models.GameLevel{}
+		l.ToStruct(v.GameLevel)
+		level := TransformGameLevel(l)
+		if k != len(bs)-1 {
+			if bs[k].GameQueueId == bs[k+1].GameQueueId {
+				l2 := models.GameLevel{}
+				l2.ToStruct(bs[k+1].GameLevel)
+				p := GetRanksPoints(l) - GetRanksPoints(l2)
+				if p >= 0 && p < 100 {
+					level += "+" + strconv.Itoa(p)
+				} else if p < 0 {
+					level += strconv.Itoa(p)
+				}
 			}
-			kills := v.Get("stats.kills").String()
-			deaths := v.Get("stats.deaths").String()
-			assists := v.Get("stats.assists").String()
-
-			if v.Get("currentAccountId").String() == LOLMap[h.sendId].AccountId {
-				//胜利还是失败
-				win := "失败"
-
-				if v.Get("stats.winner").Bool() {
-					win = "胜利"
-				}
-				//战绩
-				myTeam = teamId
-				if myTeam == "200" {
-					orderTeam = "100"
-				}
-
-				minionsKilled := v.Get("stats.minionsKilled").Int() + v.Get("stats.neutralMinionsKilled").Int()
-				goldEarned := v.Get("stats.goldEarned").String()
-
-				//隐藏分
-				queueRating := v.Get("queueRating").String()
-				//其他玩家隐藏分
-
-				//经济补刀
-				mcs = append(mcs, models.MessageChain{
-					Type: "Plain",
-					Text: fmt.Sprintf("%v : [ %v %v %v %v/%v/%v %v/%v刀 %v 隐藏分: %v ) ]\n\n", k+1, gameMode, win, champion, kills, deaths, assists, goldEarned, minionsKilled, gameCreationTime, queueRating),
-				})
+		}
+		if v.GameQueueId != 420 && v.GameQueueId != 440 {
+			level = ""
+		}
+		text := fmt.Sprintf("\n\n%v. %v %v %v %v %v/%v/%v 评分:%.2f", k+1, GameWin[v.Win], level, ChampionStr, GameModes[strconv.Itoa(v.GameQueueId)], v.Kills, v.Deaths, v.Assists, float64(v.GameScore)/10000)
+		if v.WasMvp == 1 {
+			text += " mvp"
+		}
+		if v.WasSvp == 1 {
+			text += " svp"
+		}
+		if v.WasAfk == 1 {
+			text += " 跑路"
+		}
+		if v.WasSurrender == 1 {
+			if v.Win == "Win" {
+				text += " 对方投降"
 			} else {
-				summonerName := v.Get("summonerName").String()
-				queueRating := v.Get("queueRating").String()
-				if teamId == "100" {
-					odermap["100"] += "\n[ " + summonerName + " * " + champion + fmt.Sprintf("  %v/%v/%v", kills, deaths, assists) + " 隐藏分: " + queueRating + " ]\n"
-				} else {
-					odermap["200"] += "\n[ " + summonerName + " * " + champion + fmt.Sprintf("  %v/%v/%v", kills, deaths, assists) + " 隐藏分: " + queueRating + " ]\n"
-				}
+				text += " 己方投降"
 			}
 		}
-		mcs = append(mcs, models.MessageChain{
+		ms = append(ms, models.MessageChain{
 			Type: "Plain",
-			Text: fmt.Sprintf("该局其他玩家 :\n\n我方:\n%v\n敌方:\n%v\n", odermap[myTeam], odermap[orderTeam]),
+			Text: text,
 		})
 	}
-	h.client.SendGroupMessage(h.Gid, mcs)
+	if len(ms) == 1 {
+		LOLRoseNotBattle(h)
+	} else {
+		h.client.SendGroupMessage(h.Gid, ms)
+	}
 }
 
+//绑定lol
+//lol绑定#屠天杀地之爹王#艾欧尼亚
+
 func LOLBind(h *WsHandler) {
-	accountId, err := CheckCookie(h.resp.Data.MessageChain[1].Text)
-	if err != nil {
-		if h.Gid != 0 {
-			mcs := []models.MessageChain{
-				{Type: "Plain", Text: fmt.Sprintf("绑定失败")},
-			}
-			h.client.SendTempMessage(h.Gid, h.sendId, mcs)
-			return
-		} else {
-			h.client.SendFriendMessageWithString(h.sendId, fmt.Sprintf("绑定失败"))
-			return
-		}
+	//获取用户名
+	if len(h.resp.Data.MessageChain) < 1 {
+		return
+	}
+	cm := h.resp.Data.MessageChain[1].Text
+	//去格式化
+	cms := strings.Split(cm, "#")
+	if len(cms) != 3 {
+		return
+	}
+	//获取id
+	area := LOLAreas[cms[2]]
+	id := LOLGetId(h, cms[1], area)
+	if id == "" {
+		h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 查无此id"))
+		return
 	}
 	user := models.LOLUser{
 		Base: models.Base{
 			ID: h.sendId,
 		},
-		Cookie:    h.resp.Data.MessageChain[1].Text,
-		AccountId: accountId,
 	}
-	h.Ds.Common().Update(nil, &user)
-	SessionTypeMap[h.sendId] = 0
-	if h.Gid != 0 {
-		mcs := []models.MessageChain{
-			{Type: "Plain", Text: fmt.Sprintf("绑定成功")},
-		}
-		h.client.SendTempMessage(h.Gid, h.sendId, mcs)
-	} else {
-		h.client.SendFriendMessageWithString(h.sendId, fmt.Sprintf("绑定成功"))
+	err := h.Ds.Common().GetByID(h.sendId, &user)
+	user.Gid = h.Gid
+	user.OpenId = id
+	user.Name = cms[1]
+	user.Area = area
+	if err == gorm.ErrRecordNotFound {
+		err = h.Ds.Common().Create(&user)
+		h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 绑定成功"))
+		return
 	}
-}
 
-// CheckCookie 校验cookie
-func CheckCookie(cookie string) (string, error) {
-	res, err := req.SetHeader("Cookie", cookie).Get(`https://lol.ams.game.qq.com/lol/Go/dollclip/GetUserGame?actid=12&SearchType=LOLRole&areaid=1`)
+	/*err = h.Ds.Common().Update(nil, &user)
 	if err != nil {
 		fmt.Println(err)
-		return "", err
-	}
-	body, err := io.ReadAll(res.Body)
-	accountId := gjson.GetBytes(body, "LOLRole.accountId").String()
-
-	if accountId == "" {
-		err = errors.New("校验失败")
-	}
-	return accountId, err
+		return
+	}*/
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 一个qq号只能绑定一次"))
 }
 
+func LOLGetBattleListById(h *WsHandler, id string, acount string) []models.LOLBattle {
+	if id == "" {
+		return nil
+	}
+	rb := fmt.Sprintf(`{"account_type":2,"area":1,"id":"%v","count":%v,"filter":"","offset":0,"from_src":"lol_helper"}`, id, acount)
+	res, err := req.SetHeaders(map[string]string{
+		"Cookie":       h.appConfig.LOLAuth,
+		"Referer":      h.appConfig.LOLReferer1,
+		"Content-Type": "application/json",
+		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
+	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLGetBattleListUrl)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Println(string(body))
+	battlesData := gjson.GetBytes(body, "battles").String()
+	b := models.LOLBattle{}
+	return b.ToBattles([]byte(battlesData))
+}
+
+func LOLGetBattleByGameId(h *WsHandler, id, gameId string) *models.BattleDetail {
+	if id == "" {
+		return nil
+	}
+	rb := fmt.Sprintf(`{"account_type":2,"area":1,"id":"%v","game_id":"%v","from_src":"lol_helper"}`, id, gameId)
+	res, err := req.SetHeaders(map[string]string{
+		"Cookie":       h.appConfig.LOLAuth,
+		"Referer":      h.appConfig.LOLReferer1,
+		"Content-Type": "application/json",
+		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
+	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLGetBattleDetailUrl)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Println(string(body))
+	battlesData := gjson.GetBytes(body, "battle_detail").String()
+	bd := models.BattleDetail{}
+	bd.ToStruct([]byte(battlesData))
+	return &bd
+}
+
+func LOLGetId(h *WsHandler, name string, area int64) string {
+	if name == "" || area == 0 {
+		return ""
+	}
+	rb := fmt.Sprintf(`{"nickname":"%v","from_src":"lol_helper"}`, name)
+	res, err := req.SetHeaders(map[string]string{
+		"Cookie":       h.appConfig.LOLAuth,
+		"Referer":      h.appConfig.LOLReferer1,
+		"Content-Type": "application/json",
+		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
+	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLSearchPlayerUrl)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	fmt.Println(string(body))
+	plays := gjson.GetBytes(body, "players").Array()
+	for _, v := range plays {
+		if v.Get("area").Int() == area {
+			return v.Get("openid").String()
+		}
+	}
+	return ""
+}
+
+var GameWin = map[string]string{
+	"Win":  "胜利",
+	"Fail": "失败",
+}
+
+var GameTeamWin = map[string]string{
+	"Win":  "胜方",
+	"Fail": "败方",
+}
 var GameModes = map[string]string{
 	"1400": "终极魔典",
 	"420":  "单双排",
@@ -371,330 +428,359 @@ var GameModes = map[string]string{
 	"1900": "无限火力",
 }
 
+var LOLAreas = map[string]int64{
+	"艾欧尼亚":  1,
+	"比尔吉沃特": 2,
+	"祖安":    3,
+	"诺克萨斯":  4,
+	"班德尔城":  5,
+	"德玛西亚":  6,
+	"皮尔特沃夫": 7,
+	"战争学院":  8,
+	"弗雷尔卓德": 9,
+	"巨神峰":   10,
+	"雷瑟守备":  11,
+	"无畏先锋":  12,
+	"裁决之地":  13,
+	"黑色玫瑰":  14,
+	"暗影岛":   15,
+	"恕瑞玛":   16,
+	"钢铁烈阳":  17,
+	"水晶之痕":  18,
+	"均衡教派":  19,
+	"扭曲丛林":  20,
+	"教育网专区": 21,
+	"影流":    22,
+	"征服之海":  24,
+	"卡拉曼达":  25,
+	"巨龙之巢":  26,
+	"男爵领域":  30,
+}
+
 var Champions = map[int64]models.LOLChampSearch{
 	1: {
 		ChampionId:   "1",
-		SearchString: "黑暗之女·安妮",
+		SearchString: "黑暗之女",
 	},
 	2: {
 		ChampionId:   "2",
-		SearchString: "狂战士·奥拉夫",
+		SearchString: "奥拉夫",
 	},
 	3: {
 		ChampionId:   "3",
-		SearchString: "哨兵之殇·加里奥",
+		SearchString: "加里奥",
 	},
 	4: {
 		ChampionId:   "4",
-		SearchString: "卡牌大师·崔斯特",
+		SearchString: "卡牌",
 	},
 	5: {
 		ChampionId:   "5",
-		SearchString: "德邦总管·赵信",
+		SearchString: "赵信",
 	},
 	6: {
 		ChampionId:   "6",
-		SearchString: "首领之傲·厄加特",
+		SearchString: "厄加特",
 	},
 	7: {
 		ChampionId:   "7",
-		SearchString: "诡术妖姬·乐芙兰",
+		SearchString: "妖姬",
 	},
 	8: {
 		ChampionId:   "8",
-		SearchString: "猩红收割者·弗拉基米尔",
+		SearchString: "猩红收割者",
 	},
 	9: {
 		ChampionId:   "9",
-		SearchString: "末日使者·费德提克",
+		SearchString: "末日",
 	},
 	10: {
 		ChampionId:   "10",
-		SearchString: "审判天使·凯尔",
+		SearchString: "天使",
 	},
 	11: {
 		ChampionId:   "11",
-		SearchString: "无极剑圣·易",
+		SearchString: "剑圣",
 	},
 	12: {
 		ChampionId:   "12",
-		SearchString: "牛头酋长·阿利斯塔",
+		SearchString: "牛头",
 	},
 	13: {
 		ChampionId:   "13",
-		SearchString: "流浪法师·瑞兹",
+		SearchString: "流浪",
 	},
 	14: {
 		ChampionId:   "14",
-		SearchString: "亡灵勇士·亡灵战神",
+		SearchString: "老司机",
 	},
 	15: {
 		ChampionId:   "15",
-		SearchString: "战争女神·希维尔",
+		SearchString: "希维尔",
 	},
 	16: {
 		ChampionId:   "16",
-		SearchString: "众星之子·索拉卡",
+		SearchString: "索拉卡",
 	},
 	17: {
 		ChampionId:   "17",
-		SearchString: "迅捷斥候·提莫",
+		SearchString: "提莫",
 	},
 	18: {
 		ChampionId:   "18",
-		SearchString: "麦林炮手·崔丝塔娜",
+		SearchString: "崔丝塔娜",
 	},
 	19: {
 		ChampionId:   "19",
-		SearchString: "嗜血猎手·沃里克",
+		SearchString: "狼人",
 	},
 	20: {
 		ChampionId:   "20",
-		SearchString: "雪人骑士·努努",
+		SearchString: "雪人",
 	},
 	21: {
 		ChampionId:   "21",
-		SearchString: "赏金猎人·厄运小姐",
+		SearchString: "赏金",
 	},
 	22: {
 		ChampionId:   "22",
-		SearchString: "寒冰射手·艾希",
+		SearchString: "寒冰",
 	},
 	23: {
 		ChampionId:   "23",
-		SearchString: "蛮族之王·泰达米尔",
+		SearchString: "蛮王",
 	},
 	24: {
 		ChampionId:   "24",
-		SearchString: "武器大师·贾克斯",
+		SearchString: "武器",
 	},
 	25: {
 		ChampionId:   "25",
-		SearchString: "堕落天使·莫甘娜",
+		SearchString: "莫甘娜",
 	},
 	26: {
 		ChampionId:   "26",
-		SearchString: "时光守护者·基兰",
+		SearchString: "时光",
 	},
 	27: {
 		ChampionId:   "27",
-		SearchString: "炼金术士·辛吉德",
+		SearchString: "炼金",
 	},
 	28: {
 		ChampionId:   "28",
-		SearchString: "寡妇制造者·伊芙琳",
+		SearchString: "寡妇",
 	},
 	29: {
 		ChampionId:   "29",
-		SearchString: "瘟疫之源·图奇",
+		SearchString: "老鼠",
 	},
 	30: {
 		ChampionId:   "30",
-		SearchString: "死亡颂唱者·卡尔萨斯",
+		SearchString: "死歌",
 	},
 	31: {
 		ChampionId:   "31",
-		SearchString: "虚空恐惧·科加斯",
+		SearchString: "虚空恐惧",
 	},
 	32: {
 		ChampionId:   "32",
-		SearchString: "殇之木乃伊·阿木木",
+		SearchString: "阿木木",
 	},
 	33: {
 		ChampionId:   "33",
-		SearchString: "披甲龙龟·拉莫斯",
+		SearchString: "龙龟",
 	},
 	34: {
 		ChampionId:   "34",
-		SearchString: "冰晶凤凰·艾尼维亚",
+		SearchString: "凤凰",
 	},
 	35: {
 		ChampionId:   "35",
-		SearchString: "恶魔小丑·萨科",
+		SearchString: "小丑",
 	},
 	36: {
 		ChampionId:   "36",
-		SearchString: "祖安狂人·蒙多医生",
+		SearchString: "蒙多",
 	},
 	37: {
 		ChampionId:   "37",
-		SearchString: "琴瑟仙女·娑娜",
+		SearchString: "琴女",
 	},
 	38: {
 		ChampionId:   "38",
-		SearchString: "虚空行者·卡萨丁",
+		SearchString: "卡萨丁",
 	},
 	39: {
 		ChampionId:   "39",
-		SearchString: "刀锋意志·艾瑞莉娅",
+		SearchString: "刀妹",
 	},
 	40: {
 		ChampionId:   "40",
-		SearchString: "风暴之怒·迦娜",
+		SearchString: "风女",
 	},
 	41: {
 		ChampionId:   "41",
-		SearchString: "海洋之灾·普朗克",
+		SearchString: "船长",
 	},
 	42: {
 		ChampionId:   "42",
-		SearchString: "英勇投弹手·库奇",
+		SearchString: "飞机",
 	},
 	43: {
 		ChampionId:   "43",
-		SearchString: "天启者·卡尔玛",
+		SearchString: "卡尔玛",
 	},
 	44: {
 		ChampionId:   "44",
-		SearchString: "宝石骑士·塔里克",
+		SearchString: "宝石",
 	},
 	45: {
 		ChampionId:   "45",
-		SearchString: "邪恶小法师·维迦",
+		SearchString: "小法",
 	},
 	48: {
 		ChampionId:   "48",
-		SearchString: "诅咒巨魔·特朗德尔",
+		SearchString: "巨魔",
 	},
 	50: {
 		ChampionId:   "50",
-		SearchString: "策士统领·斯维因",
+		SearchString: "乌鸦",
 	},
 	51: {
 		ChampionId:   "51",
-		SearchString: "皮城女警·凯特琳",
+		SearchString: "女警",
 	},
 	53: {
 		ChampionId:   "53",
-		SearchString: "蒸汽机器人·布里茨",
+		SearchString: "机器人",
 	},
 	54: {
 		ChampionId:   "54",
-		SearchString: "熔岩巨兽·墨菲特",
+		SearchString: "墨菲特",
 	},
 	55: {
 		ChampionId:   "55",
-		SearchString: "不祥之刃·卡特琳娜",
+		SearchString: "卡特琳娜",
 	},
 	56: {
 		ChampionId:   "56",
-		SearchString: "永恒梦魇·魔腾",
+		SearchString: "梦魇",
 	},
 	57: {
 		ChampionId:   "57",
-		SearchString: "扭曲树精·茂凯",
+		SearchString: "茂凯",
 	},
 	58: {
 		ChampionId:   "58",
-		SearchString: "荒漠屠夫·雷克顿",
+		SearchString: "鳄鱼",
 	},
 	59: {
 		ChampionId:   "59",
-		SearchString: "德玛西亚皇子·嘉文四世",
+		SearchString: "皇子",
 	},
 	60: {
 		ChampionId:   "60",
-		SearchString: "蜘蛛女皇·伊莉丝",
+		SearchString: "蜘蛛",
 	},
 	61: {
 		ChampionId:   "61",
-		SearchString: "发条魔灵·奥莉安娜",
+		SearchString: "发条",
 	},
 	62: {
 		ChampionId:   "62",
-		SearchString: "齐天大圣·孙悟空",
+		SearchString: "孙悟空",
 	},
 	63: {
 		ChampionId:   "63",
-		SearchString: "复仇焰魂·布兰德",
+		SearchString: "火男",
 	},
 	64: {
 		ChampionId:   "64",
-		SearchString: "盲僧·李青",
+		SearchString: "盲僧",
 	},
 	67: {
 		ChampionId:   "67",
-		SearchString: "暗夜猎手·薇恩",
+		SearchString: "vn",
 	},
 	68: {
 		ChampionId:   "68",
-		SearchString: "机械公敌·兰博",
+		SearchString: "兰博",
 	},
 	69: {
 		ChampionId:   "69",
-		SearchString: "魔蛇之拥·卡西奥佩娅",
+		SearchString: "魔蛇",
 	},
 	72: {
 		ChampionId:   "72",
-		SearchString: "水晶先锋·斯卡纳",
+		SearchString: "水晶先锋",
 	},
 	74: {
 		ChampionId:   "74",
-		SearchString: "大发明家·黑默丁格",
+		SearchString: "大发明家",
 	},
 	75: {
 		ChampionId:   "75",
-		SearchString: "沙漠死神·内瑟斯",
+		SearchString: "狗头",
 	},
 	76: {
 		ChampionId:   "76",
-		SearchString: "狂野女猎手·奈德丽",
+		SearchString: "奈德丽",
 	},
 	77: {
 		ChampionId:   "77",
-		SearchString: "野兽之灵·乌迪尔",
+		SearchString: "乌迪尔",
 	},
 	78: {
 		ChampionId:   "78",
-		SearchString: "圣锤之毅·波比",
+		SearchString: "波比",
 	},
 	79: {
 		ChampionId:   "79",
-		SearchString: "酒桶·古拉加斯",
+		SearchString: "酒桶",
 	},
 	80: {
 		ChampionId:   "80",
-		SearchString: "战争之王·潘森",
+		SearchString: "潘森",
 	},
 	81: {
 		ChampionId:   "81",
-		SearchString: "探险家·伊泽瑞尔",
+		SearchString: "伊泽瑞尔",
 	},
 	82: {
 		ChampionId:   "82",
-		SearchString: "铁铠冥魂·莫德凯撒",
+		SearchString: "莫德凯撒",
 	},
 	83: {
 		ChampionId:   "83",
-		SearchString: "掘墓者·约里克",
+		SearchString: "约里克",
 	},
 	84: {
 		ChampionId:   "84",
-		SearchString: "暗影之拳·阿卡丽",
+		SearchString: "阿卡丽",
 	},
 	85: {
 		ChampionId:   "85",
-		SearchString: "狂暴之心·凯南",
+		SearchString: "凯南",
 	},
 	86: {
 		ChampionId:   "86",
-		SearchString: "德玛西亚之力·盖伦",
+		SearchString: "盖伦",
 	},
 	89: {
 		ChampionId:   "89",
-		SearchString: "曙光女神·蕾欧娜",
+		SearchString: "蕾欧娜",
 	},
 	90: {
 		ChampionId:   "90",
-		SearchString: "虚空先知·玛尔扎哈",
+		SearchString: "玛尔扎哈",
 	},
 	91: {
 		ChampionId:   "91",
-		SearchString: "刀锋之影·泰隆",
+		SearchString: "男刀",
 	},
 	92: {
 		ChampionId:   "92",
-		SearchString: "放逐之刃·锐雯",
+		SearchString: "锐雯",
 	},
 	96: {
 		ChampionId:   "96",
@@ -702,95 +788,95 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	98: {
 		ChampionId:   "98",
-		SearchString: "暮光之眼·慎",
+		SearchString: "慎",
 	},
 	99: {
 		ChampionId:   "99",
-		SearchString: "光辉女郎·拉克丝",
+		SearchString: "拉克丝",
 	},
 	101: {
 		ChampionId:   "101",
-		SearchString: "远古巫灵·泽拉斯",
+		SearchString: "泽拉斯",
 	},
 	102: {
 		ChampionId:   "102",
-		SearchString: "龙血武姬·希瓦娜",
+		SearchString: "龙女",
 	},
 	103: {
 		ChampionId:   "103",
-		SearchString: "九尾妖狐·阿狸",
+		SearchString: "阿狸",
 	},
 	104: {
 		ChampionId:   "104",
-		SearchString: "法外狂徒·格雷福斯",
+		SearchString: "男枪",
 	},
 	105: {
 		ChampionId:   "105",
-		SearchString: "潮汐海灵·菲兹",
+		SearchString: "小鱼",
 	},
 	106: {
 		ChampionId:   "106",
-		SearchString: "雷霆咆哮·沃利贝尔",
+		SearchString: "狗熊",
 	},
 	107: {
 		ChampionId:   "107",
-		SearchString: "傲之追猎者·雷恩加尔",
+		SearchString: "傲之追猎者",
 	},
 	110: {
 		ChampionId:   "110",
-		SearchString: "惩戒之箭·韦鲁斯",
+		SearchString: "韦鲁斯",
 	},
 	111: {
 		ChampionId:   "111",
-		SearchString: "深海泰坦·诺提勒斯",
+		SearchString: "泰坦",
 	},
 	112: {
 		ChampionId:   "112",
-		SearchString: "机械先驱·维克托",
+		SearchString: "维克托",
 	},
 	113: {
 		ChampionId:   "113",
-		SearchString: "凛冬之怒·瑟庄妮",
+		SearchString: "瑟庄妮",
 	},
 	114: {
 		ChampionId:   "114",
-		SearchString: "无双剑姬·菲奥娜",
+		SearchString: "剑姬",
 	},
 	115: {
 		ChampionId:   "115",
-		SearchString: "爆破鬼才·吉格斯",
+		SearchString: "炸弹人",
 	},
 	117: {
 		ChampionId:   "117",
-		SearchString: "仙灵女巫·璐璐",
+		SearchString: "璐璐",
 	},
 	119: {
 		ChampionId:   "119",
-		SearchString: "荣耀行刑官·德莱文",
+		SearchString: "德莱文",
 	},
 	120: {
 		ChampionId:   "120",
-		SearchString: "战争之影·赫卡里姆",
+		SearchString: "人马",
 	},
 	121: {
 		ChampionId:   "121",
-		SearchString: "虚空掠夺者·卡兹克",
+		SearchString: "螳螂",
 	},
 	122: {
 		ChampionId:   "122",
-		SearchString: "诺克萨斯之手·德莱厄斯",
+		SearchString: "诺手",
 	},
 	126: {
 		ChampionId:   "126",
-		SearchString: "未来守护者·杰斯",
+		SearchString: "杰斯",
 	},
 	127: {
 		ChampionId:   "127",
-		SearchString: "冰霜女巫·丽桑卓",
+		SearchString: "丽桑卓",
 	},
 	131: {
 		ChampionId:   "131",
-		SearchString: "皎月女神·黛安娜",
+		SearchString: "皎月",
 	},
 	133: {
 		ChampionId:   "133",
@@ -798,23 +884,23 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	134: {
 		ChampionId:   "134",
-		SearchString: "暗黑元首·辛德拉",
+		SearchString: "辛德拉",
 	},
 	143: {
 		ChampionId:   "143",
-		SearchString: "荆棘之兴·婕拉",
+		SearchString: "婕拉",
 	},
 	150: {
 		ChampionId:   "150",
-		SearchString: "迷失之牙·纳尔",
+		SearchString: "纳尔",
 	},
 	154: {
 		ChampionId:   "154",
-		SearchString: "生化魔人·扎克",
+		SearchString: "扎克",
 	},
 	157: {
 		ChampionId:   "157",
-		SearchString: "疾风剑豪·亚索",
+		SearchString: "亚索",
 	},
 	161: {
 		ChampionId:   "161",
@@ -822,11 +908,11 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	201: {
 		ChampionId:   "201",
-		SearchString: "弗雷尔卓德·弗雷尔卓德之心",
+		SearchString: "弗雷尔卓德之心",
 	},
 	203: {
 		ChampionId:   "203",
-		SearchString: "永猎双子·千珏",
+		SearchString: "千珏",
 	},
 	222: {
 		ChampionId:   "222",
@@ -834,31 +920,31 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	223: {
 		ChampionId:   "223",
-		SearchString: "塔姆·河流之王",
+		SearchString: "塔姆",
 	},
 	236: {
 		ChampionId:   "236",
-		SearchString: "圣枪游侠·卢锡安",
+		SearchString: "卢锡安",
 	},
 	238: {
 		ChampionId:   "238",
-		SearchString: "影流之主·劫",
+		SearchString: "劫",
 	},
 	245: {
 		ChampionId:   "245",
-		SearchString: "艾克·时间刺客",
+		SearchString: "艾克",
 	},
 	254: {
 		ChampionId:   "254",
-		SearchString: "皮城执法官·蔚",
+		SearchString: "蔚",
 	},
 	266: {
 		ChampionId:   "266",
-		SearchString: "亚托克斯·暗裔剑魔",
+		SearchString: "亚托克斯",
 	},
 	267: {
 		ChampionId:   "267",
-		SearchString: "唤潮鲛姬·娜美",
+		SearchString: "娜美",
 	},
 	268: {
 		ChampionId:   "268",
@@ -866,43 +952,43 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	412: {
 		ChampionId:   "412",
-		SearchString: "魂锁典狱长·锤石",
+		SearchString: "锤石",
 	},
 	420: {
 		ChampionId:   "420",
-		SearchString: "海兽祭司·俄洛伊",
+		SearchString: "俄洛伊",
 	},
 	421: {
 		ChampionId:   "421",
-		SearchString: "雷克塞·虚空遁地兽",
+		SearchString: "挖掘机",
 	},
 	429: {
 		ChampionId:   "429",
-		SearchString: "卡莉斯塔·卡莉丝塔",
+		SearchString: "卡莉丝塔",
 	},
 	432: {
 		ChampionId:   "432",
-		SearchString: "星界游神·巴德",
+		SearchString: "巴德",
 	},
 	202: {
 		ChampionId:   "202",
-		SearchString: "烬·戏命师",
+		SearchString: "烬",
 	},
 	136: {
 		ChampionId:   "136",
-		SearchString: "铸星龙王·奥瑞利安",
+		SearchString: "龙王",
 	},
 	163: {
 		ChampionId:   "163",
-		SearchString: "岩雀·塔莉垭",
+		SearchString: "岩雀",
 	},
 	240: {
 		ChampionId:   "240",
-		SearchString: "暴怒骑士·克烈",
+		SearchString: "克烈",
 	},
 	427: {
 		ChampionId:   "427",
-		SearchString: "森林之友·艾翁",
+		SearchString: "艾翁",
 	},
 	164: {
 		ChampionId:   "164",
@@ -910,78 +996,131 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	497: {
 		ChampionId:   "497",
-		SearchString: "洛·幻翎",
+		SearchString: "洛",
 	},
 	498: {
 		ChampionId:   "498",
-		SearchString: "霞·逆羽",
+		SearchString: "霞",
 	},
 	141: {
 		ChampionId:   "141",
-		SearchString: "凯隐·影流之镰",
+		SearchString: "凯隐",
 	},
 	516: {
 		ChampionId:   "516",
-		SearchString: "奥恩·山隐之焰",
+		SearchString: "奥恩",
 	},
 	555: {
 		ChampionId:   "555",
-		SearchString: "血港鬼影·派克",
+		SearchString: "派克",
 	},
 	777: {
 		ChampionId:   "777",
-		SearchString: "封魔剑魂·永恩",
+		SearchString: "永恩",
 	},
 	360: {
 		ChampionId:   "360",
-		SearchString: "沙漠玫瑰·莎弥拉",
+		SearchString: "莎弥拉",
 	},
 	875: {
 		ChampionId:   "875",
-		SearchString: "腕豪·瑟提",
+		SearchString: "腕豪",
 	},
 	145: {
 		ChampionId:   "145",
-		SearchString: "虚空之女·卡莎",
+		SearchString: "卡莎",
 	},
 	235: {
 		ChampionId:   "235",
-		SearchString: "涤魂圣枪·赛娜",
+		SearchString: "赛娜",
 	},
 	221: {
 		ChampionId:   "221",
-		SearchString: "祖安花火·泽丽",
+		SearchString: "泽丽",
 	},
 	887: {
 		ChampionId:   "887",
-		SearchString: "灵罗娃娃·格温",
+		SearchString: "格温",
 	},
 	350: {
 		ChampionId:   "350",
-		SearchString: "魔法猫咪·悠米",
+		SearchString: "猫咪",
 	},
 	876: {
 		ChampionId:   "350",
-		SearchString: "含羞蓓蕾·莉莉娅",
+		SearchString: "莉莉娅",
 	},
 	517: {
 		ChampionId:   "517",
-		SearchString: "解脱者·塞拉斯",
+		SearchString: "塞拉斯",
 	},
 	166: {
 		ChampionId:   "166",
-		SearchString: "影哨·阿克尚",
+		SearchString: "阿克尚",
 	},
 	523: {
 		ChampionId:   "523",
-		SearchString: "残月之肃·厄斐琉斯",
+		SearchString: "厄斐琉斯",
 	},
 	897: {
 		ChampionId:   "897",
-		SearchString: "纳祖芒荣耀·奎桑提",
+		SearchString: "奎桑提",
 	},
 	234: {
 		ChampionId:   "234",
-		SearchString: "破败之王·佛耶戈",
+		SearchString: "佛耶戈",
 	},
+	200: {
+		ChampionId:   "200",
+		SearchString: "虚空女皇",
+	},
+}
+
+//根据game level获取段位信息
+
+func TransformGameLevel(level models.GameLevel) string {
+	return LOLTier[level.Tier] + LOLRank[level.Rank] + level.LeaguePoints + "点"
+}
+
+var LOLTier = map[string]string{
+	"1": "钻石",
+	"2": "铂金",
+	"3": "黄金",
+	"4": "青铜",
+	"5": "黑铁",
+	"6": "大师",
+}
+
+var LOLRank = map[string]string{
+	"0": "一",
+	"1": "二",
+	"2": "三",
+	"3": "四",
+}
+
+//获取段位的点数
+
+func GetRanksPoints(level models.GameLevel) int {
+	r, err := strconv.Atoi(level.Rank)
+	p, err := strconv.Atoi(level.LeaguePoints)
+	if err != nil {
+		return 0
+	}
+	switch {
+	case level.Tier == "5":
+		return (3-r)*100 + p
+	case level.Tier == "4":
+		return (3-r)*100 + 100*4 + p
+	case level.Tier == "3":
+		return (3-r)*100 + 100*8 + p
+	case level.Tier == "2":
+		return (3-r)*100 + 100*12 + p
+	case level.Tier == "1":
+		return (3-r)*100 + 100*16 + p
+	case level.Tier == "6":
+		return (3-r)*100 + 100*20 + p
+	case level.Tier == "7":
+		return (3-r)*100 + 100*24 + p
+	}
+	return 0
 }
