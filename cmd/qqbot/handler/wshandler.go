@@ -85,15 +85,13 @@ func (h *WsHandler) GroupHandler(msg []byte) {
 	resp.ToRespMessage(msg)
 	h.resp = &resp
 	senderId := resp.Data.Sender.Id
-
 	groupId := resp.Data.Sender.Group.Id
-
 	h.Gid = groupId
 	h.sendId = senderId
 	key := strconv.FormatUint(senderId, 10) + "_" + strconv.FormatUint(groupId, 10)
 	h.GroupKey = key
 	//判断是否是at机器人
-	if IsAtMe(resp) {
+	if IsAtMe(h) {
 		go h.ChatGpt(resp)
 	}
 	CommonCommand(h, resp)
@@ -269,9 +267,9 @@ func CheckMessages(last, new []models.MessageChain) bool {
 
 // 判断是否是at机器人
 
-func IsAtMe(resp models.RespMessage) bool {
-	for _, v := range resp.Data.MessageChain {
-		if v.Type == "At" && v.Target == 1060118918 {
+func IsAtMe(h *WsHandler) bool {
+	for _, v := range h.resp.Data.MessageChain {
+		if v.Type == "At" && v.Target == h.appConfig.BindQ {
 			return true
 		}
 	}

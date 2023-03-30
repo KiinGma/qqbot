@@ -26,6 +26,8 @@ func (h *WsHandler) LOL() {
 				GetLOLGame(h)
 			case v.Text == "战绩列表":
 				LOLGameList(h)
+			case regexp.MustCompile(`^lol转区#.*?`).MatchString(v.Text):
+				ChangeLOLArea(h, h.sendId, v.Text)
 			case regexp.MustCompile(`^lol绑定#.*?#.*`).MatchString(v.Text):
 				LOLBind(h)
 			}
@@ -34,42 +36,23 @@ func (h *WsHandler) LOL() {
 }
 
 func LOLRoseNotBind(h *WsHandler) {
-	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 您的账号未绑定,请输入 "lol绑定#您的游戏名称#服务器名称" 进行绑定\n 注:一个qq号只能绑定一次`))
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 您的账号未绑定,请输入[ "lol绑定#您的游戏名称#服务器名称" ]进行绑定, 注:一个qq号只能绑定一次`))
 }
 func LOLRoseNotBattle(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 查无战绩")
 }
 
-/*
+func LOLAreaError(h *WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 服务器输入错误")
+}
 
- 1 : [ 灵活组排 胜利 皮城女警·凯特琳 7/3/8 11486/189刀 2023-03-05 22:08:17 隐藏分: 1031 ) ]
+func LolOk(h *WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 操作成功")
+}
 
-该局其他玩家 :
-
-我方:
-
-[ 带你去峡谷看螃蟹 * 奥恩·山隐之焰  2/4/16 隐藏分: 1257 ]
-
-[ 打我你必歪琴 * 暗黑元首·辛德拉  8/0/11 隐藏分: 1694 ]
-
-[ Ndl疯狂卡丁车 * 邪恶小法师·维迦  7/1/12 隐藏分: 1195 ]
-
-[ 屠天杀地之爹王 * 200  11/2/9 隐藏分: 1672 ]
-
-敌方:
-
-[ 零笙ZER0 * 生化魔人·扎克  2/9/3 隐藏分: 1257 ]
-
-[ 快来救救你的蓝 * 虚空之女·卡莎  2/7/1 隐藏分: 1545 ]
-
-[ 时速九厘米 * 涤魂圣枪·赛娜  1/4/4 隐藏分: 1207 ]
-
-[ 黑色二手车真宽敞 * 德玛西亚之力·盖伦  5/5/0 隐藏分: 1106 ]
-
-[ 九溪悦 * 卡牌大师·崔斯特  0/10/5 隐藏分: 1766 ]
-
-
-*/
+func SysErr(h *WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 系统错误")
+}
 
 func GetLOLGame(h *WsHandler) {
 	//先获取最后一局游戏的游戏id
@@ -91,7 +74,7 @@ func GetLOLGame(h *WsHandler) {
 	}
 	gameId := bs[0].GameId
 
-	bd := LOLGetBattleByGameId(h, user.OpenId, gameId)
+	bd := LOLGetBattleByGameId(h, user, gameId)
 	//回显战绩信息
 	fmt.Println(bd)
 	ms := make([]models.MessageChain, 0)
@@ -135,7 +118,7 @@ func GetLOLGame(h *WsHandler) {
 				IsSurrender += "\n投降\n*****"
 			}
 		}
-		title = fmt.Sprintf("\n\n*****************************\n  %v %v/%v/%v %v 队伍平均elo隐藏分:%v  \n*****************************%v", GameTeamWin[v.Win], v.TotalKills, v.TotalDeaths, v.TotalAssists, v.TotalGoldEarned, v.TeamElo, IsSurrender)
+		title = fmt.Sprintf("\n\n*****************************\n  %v %v/%v/%v 队伍平均elo隐藏分:%v  \n*****************************%v", GameTeamWin[v.Win], v.TotalKills, v.TotalDeaths, v.TotalAssists, v.TeamElo, IsSurrender)
 
 		ms = append(ms, models.MessageChain{Type: "Plain", Text: title})
 		if v.TeamId == "100" {
@@ -351,11 +334,8 @@ func LOLGetBattleListById(h *WsHandler, id string, acount string) []models.LOLBa
 	return b.ToBattles([]byte(battlesData))
 }
 
-func LOLGetBattleByGameId(h *WsHandler, id, gameId string) *models.BattleDetail {
-	if id == "" {
-		return nil
-	}
-	rb := fmt.Sprintf(`{"account_type":2,"area":1,"id":"%v","game_id":"%v","from_src":"lol_helper"}`, id, gameId)
+func LOLGetBattleByGameId(h *WsHandler, user models.LOLUser, gameId string) *models.BattleDetail {
+	rb := fmt.Sprintf(`{"account_type":2,"area":%v,"id":"%v","game_id":"%v","from_src":"lol_helper"}`, user.Area, user.OpenId, gameId)
 	res, err := req.SetHeaders(map[string]string{
 		"Cookie":       h.appConfig.LOLAuth,
 		"Referer":      h.appConfig.LOLReferer1,
@@ -488,7 +468,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	8: {
 		ChampionId:   "8",
-		SearchString: "猩红收割者",
+		SearchString: "吸血鬼",
 	},
 	9: {
 		ChampionId:   "9",
@@ -744,7 +724,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	81: {
 		ChampionId:   "81",
-		SearchString: "伊泽瑞尔",
+		SearchString: "EZ",
 	},
 	82: {
 		ChampionId:   "82",
@@ -784,7 +764,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	96: {
 		ChampionId:   "96",
-		SearchString: "深渊巨口·克格莫",
+		SearchString: "大嘴",
 	},
 	98: {
 		ChampionId:   "98",
@@ -820,7 +800,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	107: {
 		ChampionId:   "107",
-		SearchString: "傲之追猎者",
+		SearchString: "狮子狗",
 	},
 	110: {
 		ChampionId:   "110",
@@ -880,7 +860,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	133: {
 		ChampionId:   "133",
-		SearchString: "德玛西亚之翼·奎因",
+		SearchString: "鸟人",
 	},
 	134: {
 		ChampionId:   "134",
@@ -904,11 +884,11 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	161: {
 		ChampionId:   "161",
-		SearchString: "虚空之眼·维克兹",
+		SearchString: "大眼",
 	},
 	201: {
 		ChampionId:   "201",
-		SearchString: "弗雷尔卓德之心",
+		SearchString: "布隆",
 	},
 	203: {
 		ChampionId:   "203",
@@ -940,7 +920,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	266: {
 		ChampionId:   "266",
-		SearchString: "亚托克斯",
+		SearchString: "剑魔",
 	},
 	267: {
 		ChampionId:   "267",
@@ -948,7 +928,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	268: {
 		ChampionId:   "268",
-		SearchString: "伊泽瑞尔",
+		SearchString: "EZ",
 	},
 	412: {
 		ChampionId:   "412",
@@ -1123,4 +1103,26 @@ func GetRanksPoints(level models.GameLevel) int {
 		return (3-r)*100 + 100*24 + p
 	}
 	return 0
+}
+
+func ChangeLOLArea(h *WsHandler, id uint64, cm string) {
+	//去格式化
+	cm = strings.ReplaceAll(cm, "lol转区#", "")
+	area, has := LOLAreas[cm]
+	if !has {
+		LOLAreaError(h)
+		return
+	}
+	u := models.LOLUser{
+		Base: models.Base{
+			ID: id,
+		},
+		Area: area,
+	}
+	err := h.Ds.Common().Update(nil, &u)
+	if err != nil {
+		SysErr(h)
+	} else {
+		LolOk(h)
+	}
 }
