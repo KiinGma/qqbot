@@ -41,15 +41,12 @@ func LOLRoseNotBind(h *WsHandler) {
 func LOLRoseNotBattle(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 查无战绩")
 }
-
 func LOLAreaError(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 服务器输入错误")
 }
-
 func LolOk(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 操作成功")
 }
-
 func SysErr(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 系统错误")
 }
@@ -67,16 +64,14 @@ func GetLOLGame(h *WsHandler) {
 		LOLRoseNotBind(h)
 		return
 	}
-	bs := LOLGetBattleListById(h, user.OpenId, "1")
+	bs := LOLGetBattleListById(h, user, "1")
 	if len(bs) != 1 {
 		LOLRoseNotBattle(h)
 		return
 	}
 	gameId := bs[0].GameId
-
 	bd := LOLGetBattleByGameId(h, user, gameId)
 	//回显战绩信息
-	fmt.Println(bd)
 	ms := make([]models.MessageChain, 0)
 	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
 	//时间戳转换
@@ -201,7 +196,7 @@ func LOLGameList(h *WsHandler) {
 		LOLRoseNotBind(h)
 		return
 	}
-	bs := LOLGetBattleListById(h, user.OpenId, "9")
+	bs := LOLGetBattleListById(h, user, "9")
 	ms := make([]models.MessageChain, 0)
 	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
 	for k, v := range bs {
@@ -308,11 +303,8 @@ func LOLBind(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 一个qq号只能绑定一次"))
 }
 
-func LOLGetBattleListById(h *WsHandler, id string, acount string) []models.LOLBattle {
-	if id == "" {
-		return nil
-	}
-	rb := fmt.Sprintf(`{"account_type":2,"area":1,"id":"%v","count":%v,"filter":"","offset":0,"from_src":"lol_helper"}`, id, acount)
+func LOLGetBattleListById(h *WsHandler, user models.LOLUser, count string) []models.LOLBattle {
+	rb := fmt.Sprintf(`{"account_type":2,"area":%v,"id":"%v","count":%v,"filter":"","offset":0,"from_src":"lol_helper"}`, user.Area, user.OpenId, count)
 	res, err := req.SetHeaders(map[string]string{
 		"Cookie":       h.appConfig.LOLAuth,
 		"Referer":      h.appConfig.LOLReferer1,
@@ -1117,9 +1109,14 @@ func ChangeLOLArea(h *WsHandler, id uint64, cm string) {
 		Base: models.Base{
 			ID: id,
 		},
-		Area: area,
 	}
-	err := h.Ds.Common().Update(nil, &u)
+	err := h.Ds.Common().GetByID(h.sendId, &u)
+	if err != nil {
+		LOLRoseNotBind(h)
+		return
+	}
+	u.Area = area
+	err = h.Ds.Common().Update(nil, &u)
 	if err != nil {
 		SysErr(h)
 	} else {
