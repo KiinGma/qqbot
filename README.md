@@ -3,7 +3,7 @@
     mirai qq 机器人,包含chatgpt,英雄联盟,原神抽卡分析,签到系统,qq群防撤回功能,猜数字,21点,摇骰子
 ```
 
-# env
+# env 联系作者拿配置文件(防侵权)
 ```azure
 SERVICE_NAME=
 ENVIRONMENT=
@@ -44,5 +44,12 @@ ALIPAY_APP_ID=
 ALIPAY_PRI_KEY=
 ALIPAY_PUB_KEY=
 ALIPAY_ENCRYPT_KEY=
+    
+    
+LOL_AUTH=
+LOL_REF1=
+LOL_SEARCH_PLAYER_URL=https:
+LOL_GET_BATTLE_LIST_URL=
+LOL_GET_BATTLE_DETAIL_URL=
 ```
 
