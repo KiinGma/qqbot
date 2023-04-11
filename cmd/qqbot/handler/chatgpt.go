@@ -36,10 +36,28 @@ func ChatGpt(h WsHandler) {
 			switch v.Text {
 			case " 会话清除", "会话清除", "清除", "清除会话", " 清除会话", "清除上下文", " 清除上下文":
 				delete(ChatMap, h.sendId)
-				h.client.SendGroupMessageWithString(h.Gid, h.sendId, " chatgpt上下文已清除")
+				if h.resp.Data.Type == "TempMessage" {
+					mcs := []models.MessageChain{
+						{Type: "Plain", Text: " 上下文已清除"},
+					}
+					h.client.SendTempMessage(h.Gid, h.sendId, mcs)
+				} else if h.resp.Data.Type == "FriendMessage" {
+					h.client.SendFriendMessageWithString(h.sendId, " 上下文已清除")
+				} else if h.resp.Data.Type == "GroupMessage" {
+					h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 上下文已清除")
+				}
 			case " 重新生成", "重新生成", "重写", " 重写":
 				ChatMap[h.sendId] = DelAfterChatSession(ChatMap[h.sendId])
-				h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendMapChat(h.sendId, ChatMap[h.sendId]))
+				if h.resp.Data.Type == "TempMessage" {
+					mcs := []models.MessageChain{
+						{Type: "Plain", Text: "  " + SendSessionChat(h.sendId, v.Text)},
+					}
+					h.client.SendTempMessage(h.Gid, h.sendId, mcs)
+				} else if h.resp.Data.Type == "FriendMessage" {
+					h.client.SendFriendMessageWithString(h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+				} else if h.resp.Data.Type == "GroupMessage" {
+					h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+				}
 			default:
 				//发送消息
 				if h.resp.Data.Type == "TempMessage" {
