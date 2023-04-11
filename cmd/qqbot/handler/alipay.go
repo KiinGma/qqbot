@@ -35,7 +35,8 @@ func GetAlipayPage(h *WsHandler) {
 		fmt.Println(err)
 		return
 	}
-	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+h.appConfig.APIHost+":"+h.appConfig.ServerPort+`/pay/`+pay.LinkId))
+	//h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+h.appConfig.APIHost+":"+h.appConfig.ServerPort+`/pay/`+pay.LinkId))
+	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://192.168.1.100:8081/pay/`+pay.LinkId))
 }
 
 //封装网页支付接口,并返回二维码
@@ -95,7 +96,6 @@ func (h *WsHandler) AlipayNotify(c echo.Context) error {
 //支付成功后的跳转
 
 func (h *WsHandler) AlipayReturn(c echo.Context) error {
-
 	return nil
 }
 

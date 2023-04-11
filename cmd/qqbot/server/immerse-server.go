@@ -29,8 +29,7 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	go wsclient.WSClient(u.String(), requestHeader)
 	c := wsclient.GetClient()
 	wsClient := handler.NewWsClient(config, c, ds)
-	go wsClient.CookieOnline()
-	go wsClient.YuanShenCookieOnline()
+
 	go wsClient.ReadMessage()
 	// ----------------
 	//   bot client
@@ -58,6 +57,7 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	}
 	s.Static("/image", config.StaticCategoryImages)
 	s.Static("/data", config.StaticWeb)
+	openapi.RegisterHandlers(s, wsClient)
 	/*//websocket 服务
 	wsHub := wsservice.NewHub()
 	go wsHub.Run()

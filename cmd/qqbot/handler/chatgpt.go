@@ -11,8 +11,8 @@ import (
 
 var ChatMap map[uint64][]models.ChatGptMessage
 
-func (h *WsHandler) ChatGpt(resp models.RespMessage) {
-	for _, v := range resp.Data.MessageChain {
+func ChatGpt(h WsHandler) {
+	for _, v := range h.resp.Data.MessageChain {
 		switch v.Type {
 		case "Quote":
 			for i := range v.Origin {
@@ -41,7 +41,17 @@ func (h *WsHandler) ChatGpt(resp models.RespMessage) {
 				ChatMap[h.sendId] = DelAfterChatSession(ChatMap[h.sendId])
 				h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendMapChat(h.sendId, ChatMap[h.sendId]))
 			default:
-				h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+				//发送消息
+				if h.resp.Data.Type == "TempMessage" {
+					mcs := []models.MessageChain{
+						{Type: "Plain", Text: "  " + SendSessionChat(h.sendId, v.Text)},
+					}
+					h.client.SendTempMessage(h.Gid, h.sendId, mcs)
+				} else if h.resp.Data.Type == "FriendMessage" {
+					h.client.SendFriendMessageWithString(h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+				} else if h.resp.Data.Type == "GroupMessage" {
+					h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+				}
 			}
 		}
 	}
@@ -104,3 +114,5 @@ func DelAfterChatSession(inSlice []models.ChatGptMessage) (outSlice []models.Cha
 	outSlice = inSlice[:len(inSlice)-1]
 	return
 }
+
+//tokens检测,超过阀值就会被替换

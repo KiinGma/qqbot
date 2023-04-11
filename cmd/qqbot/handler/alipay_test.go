@@ -58,6 +58,7 @@ func TestClient_TradePagePay(t *testing.T) {
 	id, _ := uuid.NewV4()
 	p.OutTradeNo = id.String()
 	p.TotalAmount = "0.01"
+	p.TimeoutExpress = "1m"
 	p.ProductCode = "FAST_INSTANT_TRADE_PAY"
 	p.QRPayMode = "1"
 

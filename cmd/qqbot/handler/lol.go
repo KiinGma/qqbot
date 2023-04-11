@@ -920,7 +920,7 @@ var Champions = map[int64]models.LOLChampSearch{
 	},
 	268: {
 		ChampionId:   "268",
-		SearchString: "EZ",
+		SearchString: "黄鸡",
 	},
 	412: {
 		ChampionId:   "412",
