@@ -34,7 +34,7 @@ func ChatGpt(h WsHandler) {
 			}
 		case "Plain":
 			switch v.Text {
-			case " 会话清除", "会话清除", "清除", "清除会话", " 清除会话", "清除上下文", " 清除上下文":
+			case " 会话清除", "会话清除", "清除", " 清除", "清除会话", " 清除会话", "清除上下文", " 清除上下文":
 				delete(ChatMap, h.sendId)
 				if h.resp.Data.Type == "TempMessage" {
 					mcs := []models.MessageChain{
