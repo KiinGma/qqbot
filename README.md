@@ -50,13 +50,13 @@ ALIPAY_PUB_KEY=
 ALIPAY_ENCRYPT_KEY=
 
 LOL_AUTH=
-LOL_REF1=https://www.wegame.com.cn/helper/lol/v2/index.html
-LOL_SEARCH_PLAYER_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/SearchPlayer
-LOL_GET_BATTLE_LIST_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/GetBattleList
-LOL_GET_BATTLE_DETAIL_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/GetBattleDetail
+LOL_REF1=
+LOL_SEARCH_PLAYER_URL=
+LOL_GET_BATTLE_LIST_URL=
+LOL_GET_BATTLE_DETAIL_URL=
 
 # gpt api地址
-OPENAI_CHAT_GPT_URL=https://api.openai.com/v1/chat/completions
+OPENAI_CHAT_GPT_URL=
 
 # chatgpt grpc 地址和端口
 CHAT_GPT_RPC_HOST=
