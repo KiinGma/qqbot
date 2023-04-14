@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"context"
 	"fmt"
-	"github.com/imroc/req/v3"
-	"github.com/tidwall/gjson"
-	"io"
+	"github.com/shimingyah/pool"
+	"google.golang.org/grpc"
+	"log"
+	"qqbot/cmd/chatgpt/proto/rest"
 	"qqbot/cmd/qqbot/models"
 	"qqbot/pkg/appconfig"
+	"sync"
 )
 
 var ChatMap map[uint64][]models.ChatGptMessage
@@ -47,14 +50,18 @@ func ChatGpt(h WsHandler) {
 					h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 上下文已清除")
 				}
 			case " 重新生成", "重新生成", "重写", " 重写":
+				_, has := ChatMap[h.sendId]
+				if !has {
+					return
+				}
 				ChatMap[h.sendId] = DelAfterChatSession(ChatMap[h.sendId])
 				if h.resp.Data.Type == "TempMessage" {
 					mcs := []models.MessageChain{
-						{Type: "Plain", Text: "  " + SendSessionChat(h.sendId, v.Text)},
+						{Type: "Plain", Text: SendSessionChat(h.sendId, v.Text)},
 					}
 					h.client.SendTempMessage(h.Gid, h.sendId, mcs)
 				} else if h.resp.Data.Type == "FriendMessage" {
-					h.client.SendFriendMessageWithString(h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+					h.client.SendFriendMessageWithString(h.sendId, SendSessionChat(h.sendId, v.Text))
 				} else if h.resp.Data.Type == "GroupMessage" {
 					h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
 				}
@@ -62,11 +69,11 @@ func ChatGpt(h WsHandler) {
 				//发送消息
 				if h.resp.Data.Type == "TempMessage" {
 					mcs := []models.MessageChain{
-						{Type: "Plain", Text: "  " + SendSessionChat(h.sendId, v.Text)},
+						{Type: "Plain", Text: SendSessionChat(h.sendId, v.Text)},
 					}
 					h.client.SendTempMessage(h.Gid, h.sendId, mcs)
 				} else if h.resp.Data.Type == "FriendMessage" {
-					h.client.SendFriendMessageWithString(h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
+					h.client.SendFriendMessageWithString(h.sendId, SendSessionChat(h.sendId, v.Text))
 				} else if h.resp.Data.Type == "GroupMessage" {
 					h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
 				}
@@ -84,7 +91,9 @@ func SendSessionChat(user uint64, text string) string {
 		ChatMap = make(map[uint64][]models.ChatGptMessage, 0)
 	}
 	c.Messages = AddChatSession(ChatMap[user], models.ChatGptMessage{Role: "user", Content: text})
+
 	m := getCompletions(c)
+
 	ChatMap[user] = AddChatSession(c.Messages, models.ChatGptMessage{Role: "assistant", Content: m})
 	return m
 }
@@ -101,14 +110,15 @@ func SendMapChat(user uint64, m []models.ChatGptMessage) string {
 // 调用chat gpt api
 
 func getCompletions(reqBody models.ChatGpt) string {
-	appConfig := appconfig.LoadCPGConfig()
-	rsp, err := req.SetHeaders(map[string]string{"Authorization": "Bearer " + appConfig.OpenAiKey, "Content-Type": "application/json"}).SetBodyString(reqBody.ToJsonString()).Post("https://api.openai.com/v1/chat/completions")
+	client := rest.NewChatGptServiceClient(GetGrpcClient())
+	resp, err := client.GetChat(context.Background(), &rest.ChatGptRequest{
+		Request: reqBody.ToJsonString(),
+	})
 	if err != nil {
-		return "请求超时了"
+		fmt.Println(err)
+		return "请求超时"
 	}
-	body, err := io.ReadAll(rsp.Body)
-	fmt.Println(string(body))
-	return gjson.GetBytes(body, "choices.0.message.content").String()
+	return resp.Response
 }
 
 // 清除会话队列的第一位并在末位添加一个新数组(伪栈写法)
@@ -134,3 +144,27 @@ func DelAfterChatSession(inSlice []models.ChatGptMessage) (outSlice []models.Cha
 }
 
 //tokens检测,超过阀值就会被替换
+
+// chatGpt rpc 服务
+var (
+	grpcOnce sync.Once
+	poolConn pool.Pool
+)
+
+func GetGrpcClient() *grpc.ClientConn {
+	appConfig := appconfig.LoadCPGConfig()
+	grpcOnce.Do(func() {
+		var err error
+		//grpc 服务器的地址或者 服务注册中心的地址
+		address := appConfig.ChatGptRpcHost + ":" + appConfig.ChatGptRpcPort
+		poolConn, err = pool.New(address, pool.DefaultOptions)
+		if err != nil {
+			log.Fatalf("failed to new pool: %v", err)
+		}
+	})
+	conn, err := poolConn.Get()
+	if err != nil {
+		log.Fatalf("failed to get conn: %v", err)
+	}
+	return conn.Value()
+}

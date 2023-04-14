@@ -29,7 +29,6 @@ type Config struct {
 	VerifyKey                 string `mapstructure:"VERIFY_KEY"`
 	BindQ                     uint64 `mapstructure:"BIND_Q"`
 	AtMeSessionAutoDeleteTime int64  `mapstructure:"AT_ME_SESSION_AUTO_DELETE_TIME"`
-	OpenAiKey                 string `mapstructure:"OPENAI_KEY"`
 	TrainCookie               string `mapstructure:"TRAIN_COOKIE"`
 
 	AlipayAppId      string `mapstructure:"ALIPAY_APP_ID"`
@@ -42,6 +41,12 @@ type Config struct {
 	LOLSearchPlayerUrl    string `mapstructure:"LOL_SEARCH_PLAYER_URL"`
 	LOLGetBattleListUrl   string `mapstructure:"LOL_GET_BATTLE_LIST_URL"`
 	LOLGetBattleDetailUrl string `mapstructure:"LOL_GET_BATTLE_DETAIL_URL"`
+
+	ChatGptRpcHost string `mapstructure:"CHAT_GPT_RPC_HOST"`
+	ChatGptRpcPort string `mapstructure:"CHAT_GPT_RPC_PORT"`
+
+	OpenAiKey        string `mapstructure:"OPENAI_KEY"`
+	OpenAiChatGptUrl string `mapstructure:"OPENAI_CHAT_GPT_URL"`
 }
 
 var appConfig *Config

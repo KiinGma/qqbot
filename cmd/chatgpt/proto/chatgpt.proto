@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option go_package = "./;rest";
+
+package rest;
+
+service ChatGptService {
+  rpc GetChat(ChatGptRequest) returns (ChatGptResponse) {}
+}
+
+message ChatGptRequest {
+  string request = 1;
+}
+
+message ChatGptResponse {
+  string response = 1;
+}
