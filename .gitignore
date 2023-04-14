@@ -9,3 +9,5 @@ env
 current_namespace
 upload/
 image/
+main
+main.exe
