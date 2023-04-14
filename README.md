@@ -5,17 +5,18 @@
 
 # env 联系作者拿配置文件(防侵权)
 ```azure
-SERVICE_NAME=
-ENVIRONMENT=
+SERVICE_NAME=cpg
+ENVIRONMENT=local
 
-SERVER_PORT=8081
+SERVER_PORT=
 
-API_HOST=42.193.141.42
-API_PORT=8001
+API_HOST=
+API_PORT=
 
-DB_TYPE=
+DB_TYPE=postgre
 DB_CONNECTION=
 DB_CONNECTION_MYSQL=
+
 DB_MAX_IDLE_CONNECTIONS=2
 DB_MAX_OPEN_CONNECTIONS=5
 
@@ -31,7 +32,9 @@ STATIC_CATEGORY_IMAGES=./image/
 # jwt超时时间(秒)
 JWT_TOKEN_EXPIRES_TIME=5000
 
+#qq机器人验码
 VERIFY_KEY=
+#qq机器人账号
 BIND_Q=
 
 AT_ME_SESSION_AUTO_DELETE_TIME=60
@@ -39,17 +42,26 @@ AT_ME_SESSION_AUTO_DELETE_TIME=60
 STATIC_WEB=./static/
 OPENAI_KEY=
 TRAIN_COOKIE=
+GITHUB=
 
 ALIPAY_APP_ID=
 ALIPAY_PRI_KEY=
 ALIPAY_PUB_KEY=
 ALIPAY_ENCRYPT_KEY=
-    
-    
+
 LOL_AUTH=
-LOL_REF1=
-LOL_SEARCH_PLAYER_URL=https:
-LOL_GET_BATTLE_LIST_URL=
-LOL_GET_BATTLE_DETAIL_URL=
+LOL_REF1=https://www.wegame.com.cn/helper/lol/v2/index.html
+LOL_SEARCH_PLAYER_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/SearchPlayer
+LOL_GET_BATTLE_LIST_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/GetBattleList
+LOL_GET_BATTLE_DETAIL_URL=https://www.wegame.com.cn/api/v1/wegame.pallas.game.LolBattle/GetBattleDetail
+
+# gpt api地址
+OPENAI_CHAT_GPT_URL=https://api.openai.com/v1/chat/completions
+
+# chatgpt grpc 地址和端口
+CHAT_GPT_RPC_HOST=
+CHAT_GPT_RPC_PORT=
+
+
 ```
 

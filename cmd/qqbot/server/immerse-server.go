@@ -41,6 +41,7 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	spec, err := openapi.GetSwagger()
 	if err != nil {
 		log.Fatalf("failed to load api swagger specs: %s", err)
+		return nil
 	}
 	spec.Servers = nil
 
