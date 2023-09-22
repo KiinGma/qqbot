@@ -16,6 +16,7 @@ type Config struct {
 
 	DbType               string `mapstructure:"DB_TYPE"`
 	DbConnection         string `mapstructure:"DB_CONNECTION"`
+	TiktokDbConnection   string `mapstructure:"TIKTOK_DB_CONNECTION"`
 	DbMaxIdleConnections int    `mapstructure:"DB_MAX_IDLE_CONNECTIONS"`
 	DbMaxOpenConnections int    `mapstructure:"DB_MAX_OPEN_CONNECTIONS"`
 	DbConnMaxLifetime    int    `mapstructure:"DB_CONN_MAX_LIFE_TIME"`
@@ -35,23 +36,28 @@ type Config struct {
 	AlipayPriKey     string `mapstructure:"ALIPAY_PRI_KEY"`
 	AlipayPubKey     string `mapstructure:"ALIPAY_PUB_KEY"`
 	AlipayEncryptKey string `mapstructure:"ALIPAY_ENCRYPT_KEY"`
+	AlipayPartnerId  string `mapstructure:"ALIPAY_PARTNER_ID"`
 
 	LOLAuth               string `mapstructure:"LOL_AUTH"`
 	LOLReferer1           string `mapstructure:"LOL_REF1"`
 	LOLSearchPlayerUrl    string `mapstructure:"LOL_SEARCH_PLAYER_URL"`
 	LOLGetBattleListUrl   string `mapstructure:"LOL_GET_BATTLE_LIST_URL"`
 	LOLGetBattleDetailUrl string `mapstructure:"LOL_GET_BATTLE_DETAIL_URL"`
+	LOLAdminId            uint64 `mapstructure:"LOL_ADMIN_ID"`
 
 	ChatGptRpcHost string `mapstructure:"CHAT_GPT_RPC_HOST"`
 	ChatGptRpcPort string `mapstructure:"CHAT_GPT_RPC_PORT"`
 
 	OpenAiKey        string `mapstructure:"OPENAI_KEY"`
 	OpenAiChatGptUrl string `mapstructure:"OPENAI_CHAT_GPT_URL"`
+
+	DouYinFollowerList string `mapstructure:"DOU_YIN_FOLLOWER_LIST"`
+	WsId               string `mapstructure:"WSID"`
 }
 
 var appConfig *Config
 
-func LoadCPGConfig() *Config {
+func LoadConfig() *Config {
 
 	if appConfig == nil {
 		appConfig = readConfig()

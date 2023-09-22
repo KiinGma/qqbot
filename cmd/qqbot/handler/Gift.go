@@ -2,8 +2,8 @@ package handler
 
 import (
 	"crypto/rand"
+	"kiingma/cmd/qqbot/models"
 	"math/big"
-	"qqbot/cmd/qqbot/models"
 )
 
 // Gift 抽奖

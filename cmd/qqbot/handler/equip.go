@@ -2,7 +2,7 @@ package handler
 
 import (
 	"fmt"
-	"qqbot/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/models"
 	"strings"
 )
 

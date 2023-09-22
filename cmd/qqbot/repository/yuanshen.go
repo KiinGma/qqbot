@@ -2,7 +2,7 @@ package repository
 
 import (
 	"gorm.io/gorm"
-	"qqbot/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/models"
 )
 
 type YuanShenRepo struct {

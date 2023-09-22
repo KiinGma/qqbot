@@ -2,7 +2,7 @@ package errno
 
 import (
 	"github.com/labstack/echo/v4"
-	openapi "qqbot/cmd/qqbot/swagger/rest"
+	openapi "kiingma/cmd/qqbot/swagger/rest"
 	"strconv"
 )
 

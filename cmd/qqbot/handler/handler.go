@@ -1,21 +1,18 @@
 package handler
 
 import (
-	"qqbot/cmd/datastore"
-	"qqbot/pkg/appconfig"
-	"qqbot/pkg/wsservice"
+	"kiingma/cmd/datastore"
+	"kiingma/pkg/appconfig"
 )
 
 type Handler struct {
 	store     datastore.DataStore
 	appConfig *appconfig.Config
-	wsHub     *wsservice.WSHub
 }
 
-func NewHandler(ds datastore.DataStore, config *appconfig.Config, hub *wsservice.WSHub) *Handler {
+func NewHandler(ds datastore.DataStore, config *appconfig.Config) *Handler {
 	return &Handler{
 		store:     ds,
 		appConfig: config,
-		wsHub:     hub,
 	}
 }

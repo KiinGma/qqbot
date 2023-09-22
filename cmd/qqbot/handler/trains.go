@@ -5,8 +5,8 @@ import (
 	"github.com/imroc/req/v3"
 	"github.com/tidwall/gjson"
 	"io"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/pkg/appconfig"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/pkg/appconfig"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,7 +32,7 @@ func GetTrains(h *WsHandler, text string) {
 		h.client.SendGroupMessageWithString(h.Gid, 0, fmt.Sprintf("指令错误"))
 		return
 	}
-	config := appconfig.LoadCPGConfig()
+	config := appconfig.LoadConfig()
 	resp, err := req.SetHeader("Cookie", config.TrainCookie).Get(fmt.Sprintf("https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date=%v&leftTicketDTO.from_station=%v&leftTicketDTO.to_station=%v&purpose_codes=ADULT", t, from, to))
 	if err != nil {
 		fmt.Println(err)

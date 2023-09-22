@@ -2,7 +2,7 @@ package service
 
 import (
 	"gorm.io/gorm"
-	"qqbot/cmd/qqbot/repository"
+	"kiingma/cmd/qqbot/repository"
 )
 
 type CommonService interface {
@@ -13,6 +13,7 @@ type CommonService interface {
 	GetByIDs(filters map[string]any, m interface{}) error
 	GetOneWithFilter(filter, m interface{}) error
 	GetAllWithFilter(filters repository.Filters, model, result interface{}) error
+	GetFirst(m interface{}) error
 }
 
 type commonService struct {
@@ -50,4 +51,8 @@ func (s *commonService) GetOneWithFilter(filter, m interface{}) error {
 
 func (s *commonService) GetAllWithFilter(filters repository.Filters, model, result interface{}) error {
 	return s.commonRepo.GetAllWithFilter(filters, model, result)
+}
+
+func (s *commonService) GetFirst(m interface{}) error {
+	return s.commonRepo.GetFirst(m)
 }

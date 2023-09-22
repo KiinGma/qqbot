@@ -1,0 +1,1 @@
+import{$ as u,e as c,a0 as l,a1 as i,z as f,A as d}from"./entry.7de5b8ce.js";const m=u(async(a,h)=>{let e,t;const n=c(),s="/account/signin";if(!n.value&&a.path!==s){const{error:r,data:o}=([e,t]=l(()=>i()),e=await e,t(),e);if(r.value)return f({path:s,query:{callback:encodeURIComponent(a.fullPath)}});d(o.value)}});export{m as default};

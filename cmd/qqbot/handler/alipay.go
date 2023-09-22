@@ -5,10 +5,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/smartwalle/alipay/v3"
-	"qqbot/cmd/qqbot/constants"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/pkg/alipay_pkg"
-	"qqbot/pkg/image_pkg"
+	"kiingma/cmd/qqbot/constants"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/pkg/alipay_pkg"
+	"kiingma/pkg/appconfig"
+	"kiingma/pkg/image_pkg"
 )
 
 //支付宝
@@ -35,16 +36,20 @@ func GetAlipayPage(h *WsHandler) {
 		fmt.Println(err)
 		return
 	}
-	//h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+h.appConfig.APIHost+":"+h.appConfig.ServerPort+`/pay/`+pay.LinkId))
-	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://192.168.1.100:8081/pay/`+pay.LinkId))
+	h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+h.AppConfig.APIHost+":"+h.AppConfig.ServerPort+`/pay/`+pay.LinkId))
+	//h.client.SendGroupImageWithBase64(h.Gid, h.sendId, image_pkg.QRCoreToBase64(`http://`+config.APIHost+config.ServerPort+`/pay/`+pay.LinkId))
 }
 
 //封装网页支付接口,并返回二维码
 
 func GetAlipayPageLink(id string) string {
-	client := alipay_pkg.GetAlipayClient()
+	config := appconfig.LoadConfig()
+	client, err := alipay_pkg.GetAlipayClient()
+	if err != nil {
+		fmt.Println(err)
+	}
 	var p = alipay.TradePagePay{}
-	p.NotifyURL = "http://116.25.250.174:8081/alipay/notify"
+	p.NotifyURL = "http://" + config.APIHost + ":" + config.ServerPort + "/alipay/notify"
 	p.Subject = "test"
 	p.OutTradeNo = id
 	p.TotalAmount = "0.01"

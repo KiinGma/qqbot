@@ -3,7 +3,7 @@ package handler
 import (
 	"fmt"
 	"github.com/tidwall/gjson"
-	"qqbot/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/models"
 	"strings"
 	"testing"
 )

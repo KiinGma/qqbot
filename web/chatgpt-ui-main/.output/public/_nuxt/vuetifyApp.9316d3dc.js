@@ -1,0 +1,1 @@
+import{a as t,c as a,w as s,f as n,o as r,ad as c}from"./entry.7de5b8ce.js";const p={};function f(e,l){const o=n("v-app");return r(),a(o,{theme:e.$colorMode.value},{default:s(()=>[c(e.$slots,"default")]),_:3},8,["theme"])}const d=t(p,[["render",f]]);export{d as default};

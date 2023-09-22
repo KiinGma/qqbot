@@ -3,7 +3,7 @@ package wsclient
 import (
 	"encoding/json"
 	"github.com/tidwall/gjson"
-	"qqbot/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/models"
 )
 
 // SendGroupMessage 发送群消息

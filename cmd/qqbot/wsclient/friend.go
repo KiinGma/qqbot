@@ -1,6 +1,6 @@
 package wsclient
 
-import "qqbot/cmd/qqbot/models"
+import "kiingma/cmd/qqbot/models"
 
 // SendFriendMessageWithString 发送好友消息
 func (c *Client) SendFriendMessageWithString(qq uint64, msg string) {

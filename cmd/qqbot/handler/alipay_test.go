@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/smartwalle/alipay/v3"
-	"qqbot/pkg/alipay_pkg"
-	"qqbot/pkg/image_pkg"
+	"kiingma/pkg/alipay_pkg"
+	"kiingma/pkg/image_pkg"
 	"testing"
 )
 
 func TestClient_TradeAppPay(t *testing.T) {
 	t.Log("========== TradeAppPay ==========")
-	client := alipay_pkg.GetAlipayClient()
+	client, err := alipay_pkg.GetAlipayClient()
 	var p = alipay.TradePreCreate{}
 	p.OutTradeNo = "20150320010101001"
 	p.TotalAmount = "0.01"
@@ -49,7 +49,7 @@ func TestClient_TradePreCreate(t *testing.T) {
 }
 
 func TestClient_TradePagePay(t *testing.T) {
-	client := alipay_pkg.GetAlipayClient()
+	client, err := alipay_pkg.GetAlipayClient()
 	t.Log("========== TradePagePay ==========")
 	var p = alipay.TradePagePay{}
 	p.NotifyURL = "http://127.0.0.1:8081/test"
@@ -76,4 +76,13 @@ func TestClient_TradePagePay(t *testing.T) {
 	u := url.String()
 	fmt.Println(u)
 	t.Log(url)
+}
+
+func TestAmount(t *testing.T) {
+	var a int64
+	var b int64
+	a = 1234
+	b = 100
+	Amount := fmt.Sprintf("%.3f", float64(a)/float64(b))
+	fmt.Println(Amount)
 }

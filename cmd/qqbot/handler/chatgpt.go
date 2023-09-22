@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"github.com/shimingyah/pool"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+	"kiingma/cmd/chatgpt/proto/rest"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/pkg/appconfig"
 	"log"
-	"qqbot/cmd/chatgpt/proto/rest"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/pkg/appconfig"
 	"sync"
+	"time"
 )
 
 var ChatMap map[uint64][]models.ChatGptMessage
@@ -66,6 +68,9 @@ func ChatGpt(h WsHandler) {
 					h.client.SendGroupMessageWithString(h.Gid, h.sendId, "  "+SendSessionChat(h.sendId, v.Text))
 				}
 			default:
+				if slip(v.Text) {
+					return
+				}
 				//发送消息
 				if h.resp.Data.Type == "TempMessage" {
 					mcs := []models.MessageChain{
@@ -86,7 +91,7 @@ func ChatGpt(h WsHandler) {
 
 func SendSessionChat(user uint64, text string) string {
 	c := models.ChatGpt{}
-	c.Model = "gpt-3.5-turbo"
+	c.Model = "gpt-3.5-turbo-16k"
 	if ChatMap == nil {
 		ChatMap = make(map[uint64][]models.ChatGptMessage, 0)
 	}
@@ -98,16 +103,7 @@ func SendSessionChat(user uint64, text string) string {
 	return m
 }
 
-func SendMapChat(user uint64, m []models.ChatGptMessage) string {
-	c := models.ChatGpt{}
-	c.Model = "gpt-3.5-turbo"
-	c.Messages = m
-	msg := getCompletions(c)
-	ChatMap[user] = AddChatSession(c.Messages, models.ChatGptMessage{Role: "assistant", Content: msg})
-	return msg
-}
-
-// 调用chat gpt api
+// 调用chat gpt api, 并在这里处理一些错误
 
 func getCompletions(reqBody models.ChatGpt) string {
 	client := rest.NewChatGptServiceClient(GetGrpcClient())
@@ -118,7 +114,15 @@ func getCompletions(reqBody models.ChatGpt) string {
 		fmt.Println(err)
 		return "请求超时"
 	}
-	return resp.Response
+	CResp := models.ChatGptResponse{}
+	CResp.ToJson([]byte(resp.Response))
+	if CResp.Error.Code != "" {
+		return CResp.Error.Message
+	}
+	if len(CResp.Choices) == 0 {
+		return "没有信息生成"
+	}
+	return CResp.Choices[0].Message.Content
 }
 
 // 清除会话队列的第一位并在末位添加一个新数组(伪栈写法)
@@ -152,12 +156,18 @@ var (
 )
 
 func GetGrpcClient() *grpc.ClientConn {
-	appConfig := appconfig.LoadCPGConfig()
+	appConfig := appconfig.LoadConfig()
 	grpcOnce.Do(func() {
 		var err error
 		//grpc 服务器的地址或者 服务注册中心的地址
 		address := appConfig.ChatGptRpcHost + ":" + appConfig.ChatGptRpcPort
-		poolConn, err = pool.New(address, pool.DefaultOptions)
+		poolConn, err = pool.New(address, pool.Options{
+			Dial:                 pool.Dial,
+			MaxIdle:              8,
+			MaxActive:            64,
+			MaxConcurrentStreams: 64,
+			Reuse:                true,
+		})
 		if err != nil {
 			log.Fatalf("failed to new pool: %v", err)
 		}
@@ -167,4 +177,60 @@ func GetGrpcClient() *grpc.ClientConn {
 		log.Fatalf("failed to get conn: %v", err)
 	}
 	return conn.Value()
+}
+
+const (
+	// DialTimeout the timeout of create connection
+	DialTimeout = 10 * time.Second
+
+	// BackoffMaxDelay provided maximum delay when backing off after failed connection attempts.
+	BackoffMaxDelay = 10 * time.Second
+
+	// KeepAliveTime is the duration of time after which if the client doesn't see
+	// any activity it pings the server to see if the transport is still alive.
+	KeepAliveTime = time.Duration(10) * time.Second
+
+	// KeepAliveTimeout is the duration of time for which the client waits after having
+	// pinged for keepalive check and if no activity is seen even after that the connection
+	// is closed.
+	KeepAliveTimeout = time.Duration(10) * time.Second
+
+	// InitialWindowSize we set it 1GB is to provide system's throughput.
+	InitialWindowSize = 1 << 30
+
+	// InitialConnWindowSize we set it 1GB is to provide system's throughput.
+	InitialConnWindowSize = 1 << 30
+
+	// MaxSendMsgSize set max gRPC request message size sent to server.
+	// If any request message size is larger than current value, an error will be reported from gRPC.
+	MaxSendMsgSize = 4 << 30
+
+	// MaxRecvMsgSize set max gRPC receive message size received from server.
+	// If any message size is larger than current value, an error will be reported from gRPC.
+	MaxRecvMsgSize = 4 << 30
+)
+
+func Dial(address string) (*grpc.ClientConn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DialTimeout)
+	defer cancel()
+	return grpc.DialContext(ctx, address, grpc.WithInsecure(),
+		grpc.WithBackoffMaxDelay(BackoffMaxDelay),
+		grpc.WithInitialWindowSize(InitialWindowSize),
+		grpc.WithInitialConnWindowSize(InitialConnWindowSize),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(MaxSendMsgSize)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxRecvMsgSize)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                KeepAliveTime,
+			Timeout:             KeepAliveTimeout,
+			PermitWithoutStream: true,
+		}))
+}
+
+// 让gpt忽略一些指令
+func slip(s string) bool {
+	switch s {
+	case "关机", "":
+		return true
+	}
+	return false
 }

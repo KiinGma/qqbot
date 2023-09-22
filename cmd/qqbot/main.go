@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"qqbot/cmd/datastore"
-	"qqbot/cmd/qqbot/server"
-	"qqbot/pkg/appconfig"
+	"kiingma/cmd/datastore"
+	"kiingma/cmd/qqbot/server"
+	"kiingma/pkg/appconfig"
 )
 
 func main() {
@@ -12,7 +12,7 @@ func main() {
 	//---------------
 	// app config
 	//---------------
-	appConfig := appconfig.LoadCPGConfig()
+	appConfig := appconfig.LoadConfig()
 	fmt.Printf("starting service %s api ...", appConfig.Environment)
 	//---------
 	// Database

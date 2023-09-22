@@ -4,9 +4,9 @@ import (
 	"errors"
 	"github.com/gomodule/redigo/redis"
 	"gorm.io/gorm"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/cmd/qqbot/repository"
-	"qqbot/cmd/redisstore"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/repository"
+	"kiingma/cmd/redisstore"
 )
 
 type GameService interface {
@@ -134,6 +134,7 @@ func (s *gameService) GetCommoditiesByName(name string) (commodities []models.Co
 			"name": name,
 		},
 	}
+
 	s.commonRepo.GetAllWithFilter(f, nil, &commodities)
 	return
 }

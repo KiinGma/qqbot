@@ -1,7 +1,22 @@
 package handler
 
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
+	"io"
+	"kiingma/cmd/qqbot/models"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
 //扫码登录
-/*
+
 func PtQrLogin(h *WsHandler, gid, sendId uint64) {
 	qrsig := GetQrSig(h, gid, sendId)
 	qrToken := 0
@@ -21,12 +36,12 @@ func PtQrLogin(h *WsHandler, gid, sendId uint64) {
 				Gid:    h.Gid,
 				Cookie: fmt.Sprintf("p_uin=%v;p_skey=%v", pUin, pSKey),
 			}
-			accountId, err := CheckCookie(user.Cookie)
+			/*accountId, err := CheckCookie(user.Cookie)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
-			user.AccountId = accountId
+			user.AccountId = accountId*/
 			err = h.Ds.Common().Update(nil, &user)
 			if err != nil {
 				return
@@ -39,8 +54,7 @@ func PtQrLogin(h *WsHandler, gid, sendId uint64) {
 	h.client.SendGroupMessageWithString(gid, sendId, " 二维码已失效")
 }
 
-//心跳获取登录状态
-
+// 心跳获取登录状态
 func LOLHeartbeat(qrToken int) (pSKey string, pUin string, err error) {
 	resp, err := req.Get(fmt.Sprintf("https://ssl.ptlogin2.qq.com/ptqrlogin?u1=https://lol.qq.com/act/a20191210super/index.shtml&ptqrtoken=%v&ptredirect=1&h=1&t=1&g=1&from_ui=1&ptlang=2052&js_ver=22101815&js_type=1&login_sig=akSQVrahlThy9ymKtIrYbn-DC2Jjzf986tjlZTwti9TZhmQSXajpvPuItA*lLNh4&pt_uistyle=40&aid=21000501&daid=8&has_onekey=1&&o1vId=587fbe3c00910c5167a7beff68ad5920&action=0-0-%v", qrToken, time.Now().UnixMilli()))
 	defer resp.Body.Close()
@@ -67,15 +81,13 @@ func GetPSKey(u string) (pSKey string, pUin string, err error) {
 		fmt.Println(err)
 	}
 	//resp, _ := req.Get(u)
-	defer resp.Body.Close()
-	fmt.Println()
+	fmt.Println(resp.Cookies())
 	for _, v := range resp.Cookies() {
 		if v.Name == "p_skey" && v.Value != "" {
 			pSKey = v.Value
 		} else if v.Name == "p_uin" && v.Value != "" {
 			pUin = v.Value
 		}
-		fmt.Println(v)
 	}
 	return
 }
@@ -319,4 +331,3 @@ func QueueRating(h *WsHandler) {
 	}
 	h.client.SendGroupMessage(h.Gid, mcs)
 }
-*/

@@ -128,3 +128,8 @@ func (r *CommonRepo) GetAllWithFilter(filters Filters, model, result interface{}
 
 	return db.Model(model).Find(result).Error
 }
+
+func (r *CommonRepo) GetFirst(m interface{}) error {
+	err := r.db.Where(m).First(m).Error
+	return err
+}

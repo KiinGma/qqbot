@@ -4,7 +4,7 @@ import (
 	"github.com/imroc/req/v3"
 	"github.com/tidwall/gjson"
 	"io"
-	"qqbot/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/models"
 )
 
 func (h *WsHandler) TuLing(groupId, senderId uint64, message string) {

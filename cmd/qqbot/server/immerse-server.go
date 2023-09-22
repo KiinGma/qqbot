@@ -4,15 +4,16 @@ import (
 	"flag"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"kiingma/cmd/datastore"
+	"kiingma/cmd/qqbot/handler"
+	openapi "kiingma/cmd/qqbot/swagger/rest"
+	"kiingma/cmd/qqbot/wsclient"
+	"kiingma/pkg/appconfig"
+	"kiingma/pkg/ws_pkg"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"qqbot/cmd/datastore"
-	"qqbot/cmd/qqbot/handler"
-	openapi "qqbot/cmd/qqbot/swagger/rest"
-	"qqbot/cmd/qqbot/wsclient"
-	"qqbot/pkg/appconfig"
 	"strconv"
 )
 
@@ -28,7 +29,9 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	requestHeader.Add("qq", strconv.FormatUint(config.BindQ, 10))
 	go wsclient.WSClient(u.String(), requestHeader)
 	c := wsclient.GetClient()
-	wsClient := handler.NewWsClient(config, c, ds)
+	wsHub := ws_pkg.NewHub()
+	go wsHub.Run()
+	wsClient := handler.NewWsClient(config, c, ds, wsHub)
 
 	go wsClient.ReadMessage()
 	// ----------------
@@ -59,6 +62,8 @@ func NewServer(ds datastore.DataStore, config *appconfig.Config) *DSBServer {
 	s.Static("/image", config.StaticCategoryImages)
 	s.Static("/data", config.StaticWeb)
 	openapi.RegisterHandlers(s, wsClient)
+	s.GET("/ws/:id", wsClient.Ws)
+	s.GET("/send/:id", wsClient.Send123)
 	/*//websocket 服务
 	wsHub := wsservice.NewHub()
 	go wsHub.Run()

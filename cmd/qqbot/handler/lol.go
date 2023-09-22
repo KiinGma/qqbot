@@ -6,9 +6,10 @@ import (
 	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
 	"io"
+	"kiingma/cmd/qqbot/models"
 	"net/url"
-	"qqbot/cmd/qqbot/models"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,12 +25,16 @@ func (h *WsHandler) LOL() {
 			switch {
 			case v.Text == "战绩" || v.Text == "英雄联盟战绩":
 				GetLOLGame(h)
+			case v.Text == "lol绑定":
+				h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 请输入[ "lol绑定#您的游戏名称#服务器名称" ]进行绑定`))
 			case v.Text == "战绩列表":
 				LOLGameList(h)
 			case regexp.MustCompile(`^lol转区#.*?`).MatchString(v.Text):
 				ChangeLOLArea(h, h.sendId, v.Text)
 			case regexp.MustCompile(`^lol绑定#.*?#.*`).MatchString(v.Text):
 				LOLBind(h)
+			case v.Text == "结算":
+				LOLBalancePoints(*h)
 			}
 		}
 	}
@@ -38,9 +43,19 @@ func (h *WsHandler) LOL() {
 func LOLRoseNotBind(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 您的账号未绑定,请输入[ "lol绑定#您的游戏名称#服务器名称" ]进行绑定, 注:一个qq号只能绑定一次`))
 }
+
+func LOLRoseNotBind2(h WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(` 您的账号未绑定,请输入[ "lol绑定#您的游戏名称#服务器名称" ]进行绑定, 注:一个qq号只能绑定一次`))
+}
+
 func LOLRoseNotBattle(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 查无战绩")
 }
+
+func LOLRoseNotBattle2(h WsHandler) {
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 查无战绩")
+}
+
 func LOLAreaError(h *WsHandler) {
 	h.client.SendGroupMessageWithString(h.Gid, h.sendId, " 服务器输入错误")
 }
@@ -64,13 +79,13 @@ func GetLOLGame(h *WsHandler) {
 		LOLRoseNotBind(h)
 		return
 	}
-	bs := LOLGetBattleListById(h, user, "1")
+	bs := LOLGetBattleListById(*h, user, "1")
 	if len(bs) != 1 {
 		LOLRoseNotBattle(h)
 		return
 	}
 	gameId := bs[0].GameId
-	bd := LOLGetBattleByGameId(h, user, gameId)
+	bd := LOLGetBattleByGameId(*h, user, gameId)
 	//回显战绩信息
 	ms := make([]models.MessageChain, 0)
 	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
@@ -196,7 +211,7 @@ func LOLGameList(h *WsHandler) {
 		LOLRoseNotBind(h)
 		return
 	}
-	bs := LOLGetBattleListById(h, user, "9")
+	bs := LOLGetBattleListById(*h, user, "9")
 	ms := make([]models.MessageChain, 0)
 	ms = append(ms, models.MessageChain{Type: "At", Target: h.sendId})
 	for k, v := range bs {
@@ -259,7 +274,6 @@ func LOLGameList(h *WsHandler) {
 }
 
 //绑定lol
-//lol绑定#屠天杀地之爹王#艾欧尼亚
 
 func LOLBind(h *WsHandler) {
 	//获取用户名
@@ -291,26 +305,27 @@ func LOLBind(h *WsHandler) {
 	user.Area = area
 	if err == gorm.ErrRecordNotFound {
 		err = h.Ds.Common().Create(&user)
-		h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 绑定成功"))
 		return
+	} else {
+		err = h.Ds.Common().Update(nil, &user)
 	}
-
-	/*err = h.Ds.Common().Update(nil, &user)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}*/
-	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 一个qq号只能绑定一次"))
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 绑定成功"))
 }
 
-func LOLGetBattleListById(h *WsHandler, user models.LOLUser, count string) []models.LOLBattle {
+func LOLGetBattleListById(h WsHandler, user models.LOLUser, count string) []models.LOLBattle {
+	cookie := user.Cookie
+	if cookie == "" {
+		adminUser := models.LOLUser{}
+		_ = h.Ds.Common().GetByID(h.AppConfig.LOLAdminId, &adminUser)
+		cookie = adminUser.Cookie
+	}
 	rb := fmt.Sprintf(`{"account_type":2,"area":%v,"id":"%v","count":%v,"filter":"","offset":0,"from_src":"lol_helper"}`, user.Area, user.OpenId, count)
 	res, err := req.SetHeaders(map[string]string{
-		"Cookie":       h.appConfig.LOLAuth,
-		"Referer":      h.appConfig.LOLReferer1,
+		"Cookie":       cookie,
+		"Referer":      h.AppConfig.LOLReferer1,
 		"Content-Type": "application/json",
 		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
-	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLGetBattleListUrl)
+	}).SetBodyBytes([]byte(rb)).Post(h.AppConfig.LOLGetBattleListUrl)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -326,14 +341,20 @@ func LOLGetBattleListById(h *WsHandler, user models.LOLUser, count string) []mod
 	return b.ToBattles([]byte(battlesData))
 }
 
-func LOLGetBattleByGameId(h *WsHandler, user models.LOLUser, gameId string) *models.BattleDetail {
+func LOLGetBattleByGameId(h WsHandler, user models.LOLUser, gameId string) *models.BattleDetail {
+	cookie := user.Cookie
+	if cookie == "" {
+		adminUser := models.LOLUser{}
+		_ = h.Ds.Common().GetByID(h.AppConfig.LOLAdminId, &adminUser)
+		cookie = adminUser.Cookie
+	}
 	rb := fmt.Sprintf(`{"account_type":2,"area":%v,"id":"%v","game_id":"%v","from_src":"lol_helper"}`, user.Area, user.OpenId, gameId)
 	res, err := req.SetHeaders(map[string]string{
-		"Cookie":       h.appConfig.LOLAuth,
-		"Referer":      h.appConfig.LOLReferer1,
+		"Cookie":       cookie,
+		"Referer":      h.AppConfig.LOLReferer1,
 		"Content-Type": "application/json",
 		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
-	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLGetBattleDetailUrl)
+	}).SetBodyBytes([]byte(rb)).Post(h.AppConfig.LOLGetBattleDetailUrl)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -354,13 +375,20 @@ func LOLGetId(h *WsHandler, name string, area int64) string {
 	if name == "" || area == 0 {
 		return ""
 	}
+	//用管理员的id去查
+	user := models.LOLUser{}
+	err := h.Ds.Common().GetByID(h.AppConfig.LOLAdminId, &user)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
 	rb := fmt.Sprintf(`{"nickname":"%v","from_src":"lol_helper"}`, name)
 	res, err := req.SetHeaders(map[string]string{
-		"Cookie":       h.appConfig.LOLAuth,
-		"Referer":      h.appConfig.LOLReferer1,
+		"Cookie":       user.Cookie,
+		"Referer":      h.AppConfig.LOLReferer1,
 		"Content-Type": "application/json",
 		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.124 Safari/537.36 qblink wegame.exe WeGame/5.5.3.2131 ChannelId/0 QBCore/3.70.91.400 QQBrowser/9.0.2524.400",
-	}).SetBodyBytes([]byte(rb)).Post(h.appConfig.LOLSearchPlayerUrl)
+	}).SetBodyBytes([]byte(rb)).Post(h.AppConfig.LOLSearchPlayerUrl)
 	if err != nil {
 		fmt.Println(err)
 		return ""
@@ -1051,6 +1079,9 @@ var Champions = map[int64]models.LOLChampSearch{
 //根据game level获取段位信息
 
 func TransformGameLevel(level models.GameLevel) string {
+	if level.Tier == "" {
+		return ""
+	}
 	return LOLTier[level.Tier] + LOLRank[level.Rank] + level.LeaguePoints + "点"
 }
 
@@ -1058,9 +1089,11 @@ var LOLTier = map[string]string{
 	"1": "钻石",
 	"2": "铂金",
 	"3": "黄金",
-	"4": "青铜",
-	"5": "黑铁",
+	"4": "白银",
+	"5": "青铜",
 	"6": "大师",
+	"7": "王者",
+	"8": "黑铁",
 }
 
 var LOLRank = map[string]string{
@@ -1122,4 +1155,164 @@ func ChangeLOLArea(h *WsHandler, id uint64, cm string) {
 	} else {
 		LolOk(h)
 	}
+}
+
+// 积分结算功能
+
+func LOLBalancePoints(h WsHandler) {
+	user := models.LOLUser{
+		Base: models.Base{
+			ID: h.sendId,
+		},
+	}
+	err := h.Ds.Common().GetByID(h.sendId, &user)
+	if err == gorm.ErrRecordNotFound {
+		//未绑定
+		LOLRoseNotBind2(h)
+		return
+	}
+	//先拉取结算发起人的战绩信息
+	//1.拉取战绩列表,长度1,按时间排序
+	bs := LOLGetBattleListById(h, user, "1")
+	if len(bs) != 1 {
+		LOLRoseNotBattle2(h)
+		return
+	}
+	gameId := bs[0].GameId
+	//2.根据游戏id获取战绩信息
+	bd := LOLGetBattleByGameId(h, user, gameId)
+	//3.从战绩中获取到所在队伍id
+	team := func() []models.PlayerDetail {
+		teamId := ``
+		team100 := make([]models.PlayerDetail, 0)
+		team200 := make([]models.PlayerDetail, 0)
+		//规整队伍
+		for _, v := range bd.PlayerDetails {
+			if v.Openid == user.OpenId {
+				teamId = v.TeamId
+			}
+			if v.TeamId == "100" {
+				team100 = append(team100, v)
+			} else {
+				team200 = append(team200, v)
+			}
+		}
+		if teamId == "100" {
+			return team100
+		} else if teamId == "200" {
+			return team200
+		}
+		return nil
+	}()
+	//计分,比重是k/d/a 1/-1.3/0.7
+	ScoreFivePlayers(h, team)
+}
+
+//五人计分法,以第三位为标准,顺延第四位和第五位,相差分数*倍率的两个玩家分数总和为第一第二两位总得分,再以第一第二比例划分得分
+
+func ScoreFivePlayers(h WsHandler, team []models.PlayerDetail) {
+	//回显消息
+	ms := make([]models.MessageChain, 0)
+	r := 10.0
+	//先找出中位数
+	scores := make([]float64, 5)
+	scoresMap := make(map[string]float64)
+	teamMap := make(map[string]models.PlayerDetail)
+	for k, v := range team {
+		//3+3*0.7-3*1.3
+		scores[k] = float64(v.ChampionsKilled) + float64(v.Assists)*0.7 - float64(v.NumDeaths)*1.3
+		scoresMap[v.Openid] = scores[k]
+		teamMap[v.Openid] = v
+	}
+	sort.Float64s(scores)
+
+	//计算第四位和第五位的差别
+	s0 := (scores[2] - scores[0]) * r
+	s1 := (scores[2] - scores[1]) * r
+
+	//计减分
+	var s int64
+	for k, v := range scoresMap {
+		switch v {
+		case scores[0]:
+			//减分
+			score := int64(-s0)
+			integrate, i0 := balance(h, k, score)
+			if i0 != 0 && integrate != nil {
+				//确有其人
+				name, _ := url.QueryUnescape(teamMap[k].Name)
+				ms = append(ms, models.MessageChain{Type: "At", Target: integrate.Id},
+					models.MessageChain{Type: "Plain", Text: fmt.Sprintf(" %v 扣除 %v 点,剩余积分 %v\n", name, score, integrate.Score)})
+			}
+			s += -i0
+		case scores[1]:
+			score := int64(-s1)
+			integrate, i1 := balance(h, k, score)
+			if i1 != 0 && integrate != nil {
+				//确有其人
+				name, _ := url.QueryUnescape(teamMap[k].Name)
+				ms = append(ms, models.MessageChain{Type: "At", Target: integrate.Id},
+					models.MessageChain{Type: "Plain", Text: fmt.Sprintf(" %v 扣除 %v 点,剩余积分 %v\n", name, score, integrate.Score)})
+			}
+			s += -i1
+		}
+	}
+	//记加分
+	for k, v := range scoresMap {
+		switch v {
+		case scores[4]:
+			sam := scores[4] + scores[3]
+			if sam < 0 {
+				sam = -sam
+			}
+			if scores[4] < 0 {
+				scores[4] = -scores[4]
+			}
+			score := int64(float64(s) / sam * scores[4])
+			integrate, i1 := balance(h, k, score)
+			if i1 != 0 && integrate != nil {
+				//确有其人
+				name, _ := url.QueryUnescape(teamMap[k].Name)
+				ms = append(ms, models.MessageChain{Type: "At", Target: integrate.Id},
+					models.MessageChain{Type: "Plain", Text: fmt.Sprintf(" %v 增加 %v 点,剩余积分 %v\n", name, score, integrate.Score)})
+			}
+		case scores[3]:
+			sam := scores[4] + scores[3]
+			if sam < 0 {
+				sam = -sam
+			}
+			if scores[3] < 0 {
+				scores[3] = -scores[3]
+			}
+			score := int64(float64(s) / sam * scores[3])
+			integrate, i1 := balance(h, k, score)
+			if i1 != 0 && integrate != nil {
+				//确有其人
+				name, _ := url.QueryUnescape(teamMap[k].Name)
+				ms = append(ms, models.MessageChain{Type: "At", Target: integrate.Id},
+					models.MessageChain{Type: "Plain", Text: fmt.Sprintf(" %v 增加 %v 点,剩余积分 %v\n", name, score, integrate.Score)})
+			}
+		}
+	}
+	if len(ms) == 0 {
+		ms = append(ms, models.MessageChain{Type: "Plain", Text: "当前排位无扣分玩家 \n"})
+	}
+	h.client.SendGroupMessage(h.Gid, ms)
+}
+
+func balance(h WsHandler, openId string, score int64) (*models.Integrate, int64) {
+	//先查有没有玩家注册
+	user := models.LOLUser{}
+	err := h.Ds.Common().GetByIDs(map[string]any{"open_id": openId}, &user)
+	if err != nil {
+		fmt.Println(err)
+		return nil, 0
+	}
+	//查他的分
+	integrate := ReadIntegrateById(&h, user.ID)
+	//加分
+	integrate.Score += score
+	//保存
+	_ = h.Ds.Common().Update(nil, &user)
+	return &integrate, score
 }

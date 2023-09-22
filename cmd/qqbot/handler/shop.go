@@ -3,8 +3,8 @@ package handler
 import (
 	"fmt"
 	"gorm.io/gorm"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/cmd/qqbot/repository"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/repository"
 	"regexp"
 	"strconv"
 	"strings"

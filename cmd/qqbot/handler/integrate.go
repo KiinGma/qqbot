@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"gorm.io/gorm"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/repository"
+	"kiingma/pkg/image_pkg"
 	"math/big"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/cmd/qqbot/repository"
-	"qqbot/pkg/image_pkg"
 	"regexp"
 	"strconv"
 	"strings"
@@ -83,7 +83,7 @@ func (h *WsHandler) IntegrateLoot(resp models.RespMessage) {
 	//打劫里面所有at的人
 	for _, v := range resp.Data.MessageChain {
 		//不能打劫机器人,不能打劫自己
-		if v.Type == "At" && v.Target != h.appConfig.BindQ && v.Target != senderId {
+		if v.Type == "At" && v.Target != h.AppConfig.BindQ && v.Target != senderId {
 			senderIntegrate := ReadIntegrateById(h, senderId)
 			b, _ := rand.Int(rand.Reader, big.NewInt(1000))
 			pLuck := SearchLootProp(h)
@@ -437,7 +437,7 @@ func noBeg(h *WsHandler) {
 func GiveAReward(h *WsHandler, msg string) {
 	//打赏所有要饭的
 	//打赏多少钱
-	moneyStr := regexp.MustCompile(`^打赏[0-9]*$|^打赏&`).FindString(msg)
+	moneyStr := regexp.MustCompile(`^打赏[0-9]*$|^打赏`).FindString(msg)
 	moneyStr = strings.ReplaceAll(moneyStr, "打赏", "")
 	money, err := strconv.ParseInt(moneyStr, 10, 0)
 	if err != nil || money == 0 {
@@ -476,7 +476,10 @@ func GiveAReward(h *WsHandler, msg string) {
 			v.Times += 1
 			v.SumScore += money
 			if v.Times == 3 {
-				h.Ds.Common().Delete(&v)
+				h.Ds.Common().Delete(&models.BegMap{
+					Id:      v.Id,
+					GroupID: v.GroupID,
+				})
 				h.client.SendGroupMessageWithString(h.Gid, v.Id, fmt.Sprintf(" 你的要饭之旅已经结束 , 总共要得 %v 块钱 , 把今天的收获拿去挥洒吧 ... ", v.SumScore))
 			} else {
 				h.Ds.Common().Update(nil, &v)

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/tidwall/gjson"
-	"qqbot/cmd/datastore"
-	"qqbot/cmd/qqbot/models"
-	"qqbot/cmd/qqbot/wsclient"
-	"qqbot/pkg/appconfig"
+	"kiingma/cmd/datastore"
+	"kiingma/cmd/qqbot/models"
+	"kiingma/cmd/qqbot/wsclient"
+	"kiingma/pkg/appconfig"
+	"kiingma/pkg/ws_pkg"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,8 +17,9 @@ import (
 var SessionTypeMap map[uint64]int
 
 type WsHandler struct {
-	appConfig      *appconfig.Config
+	AppConfig      *appconfig.Config
 	client         *wsclient.Client
+	Hub            *ws_pkg.WSHub
 	AtMeSessionMap map[string]AtMeSession
 	Gid            uint64
 	sendId         uint64
@@ -30,9 +33,10 @@ type AtMeSession struct {
 	GroupId uint64
 }
 
-func NewWsClient(config *appconfig.Config, c *wsclient.Client, ds datastore.DataStore) *WsHandler {
+func NewWsClient(config *appconfig.Config, c *wsclient.Client, ds datastore.DataStore, hub *ws_pkg.WSHub) *WsHandler {
 	return &WsHandler{
-		appConfig:      config,
+		Hub:            hub,
+		AppConfig:      config,
 		client:         c,
 		AtMeSessionMap: make(map[string]AtMeSession),
 		Ds:             ds,
@@ -45,16 +49,16 @@ func (h *WsHandler) ReadMessage() {
 		case m := <-h.client.Read:
 			resp := models.RespMessage{}
 			resp.ToRespMessage(m)
+			h.sendId = resp.Data.Sender.Id
 			if resp.SyncId != "" && resp.SyncId != "0" {
 				h.resp = &resp
 				h.Gid = resp.Data.Sender.Group.Id
-				h.sendId = resp.Data.Sender.Id
 				key := strconv.FormatUint(h.sendId, 10) + "_" + strconv.FormatUint(h.Gid, 10)
 				h.GroupKey = key
 				messageType := gjson.GetBytes(m, "data.type").String()
 				switch messageType {
-				case "GroupRecallEvent":
-					h.GroupRecallEvent(m)
+				/*case "GroupRecallEvent":
+				h.GroupRecallEvent(m)*/
 				case "GroupMessage":
 					h.GroupHandler()
 				case "FriendMessage", "TempMessage":
@@ -70,6 +74,9 @@ func (h *WsHandler) ReadMessage() {
 	}
 }
 func (h *WsHandler) FriendHandler() {
+	//做一次私信转发
+	go h.Transmit(*h.resp)
+
 	session, has := SessionTypeMap[h.sendId]
 	if has {
 		if session == 4 {
@@ -104,7 +111,7 @@ func (h *WsHandler) GroupHandler() {
 				switch {
 				/*case v.Text == "幸运骰子":
 				InitDiceGame(h)*/
-				case v.Text == "a":
+
 				case v.Text == "属性":
 					GetCharacterAttribute(h)
 				case v.Text == "背包":
@@ -132,6 +139,7 @@ func (h *WsHandler) GroupHandler() {
 				default:
 					h.Shop()
 					go h.LOL()
+					go WeGame(*h)
 				}
 			}
 		}
@@ -168,9 +176,9 @@ func CommonCommand(h *WsHandler, resp models.RespMessage) {
 				id := strings.ReplaceAll(v.Text, "消息", "")
 				parseInt, _ := strconv.ParseInt(id, 10, 64)
 				h.client.MessageFromId(parseInt, h.Gid)
-			case regexp.MustCompile(`-?(\(-?)*\d+(\.\d+)?\)*$|-?((\(-?)*\d+(\.\d+)?\)*[\-/+*])+((\(-?)*\d+(\.\d+)?\)*)`).MatchString(v.Text):
-				//计算
-				h.Compute(v.Text)
+			/*case regexp.MustCompile(`-?(\(-?)*\d+(\.\d+)?\)*$|-?((\(-?)*\d+(\.\d+)?\)*[\-/+*])+((\(-?)*\d+(\.\d+)?\)*)`).MatchString(v.Text):
+			//计算
+			h.Compute(v.Text)*/
 			default:
 				h.YuanShen(h.Gid, v.Text)
 			}
@@ -187,7 +195,7 @@ func (h *WsHandler) GroupRecallEvent(msg []byte) {
 	mcs := []models.MessageChain{
 		{
 			Type: "Plain",
-			Text: "检测到撤回消息,Id为: " + mid + ",回复 [消息Id] 获取 !",
+			Text: "检测到撤回消息,Id为: " + mid + ",回复 [消息Id] 获取 ! ,如 \"消息1234\"",
 		},
 	}
 	h.client.SendGroupMessage(id, mcs)
@@ -230,9 +238,42 @@ func CheckMessages(last, new []models.MessageChain) bool {
 
 func IsAtMe(h *WsHandler) bool {
 	for _, v := range h.resp.Data.MessageChain {
-		if v.Type == "At" && v.Target == h.appConfig.BindQ {
+		if v.Type == "At" && v.Target == h.AppConfig.BindQ {
 			return true
 		}
 	}
 	return false
+}
+
+func (h *WsHandler) Send123(c echo.Context) error {
+	message := ws_pkg.Message{
+		ID:   c.Param("id"),
+		Data: []byte(c.Param("id")),
+	}
+	h.Hub.Broadcast <- &message
+	return nil
+}
+
+func (h *WsHandler) Ws(c echo.Context) error {
+	//升级协议
+	conn, err := ws_pkg.Upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	//注册到内存
+	server := &ws_pkg.Server{Hub: h.Hub, Conn: conn, Send: make(chan []byte, 256), ID: c.Param("id")}
+	server.Hub.Register <- server
+	go server.WritePump()
+	go server.ReadPump()
+	return nil
+}
+
+func (h *WsHandler) Transmit(resp models.RespMessage) {
+	data := resp.Data.MessageChain[1].Text
+	message := ws_pkg.Message{
+		ID:   strconv.FormatUint(resp.Data.Sender.Id, 10),
+		Data: []byte(data),
+	}
+	h.Hub.Broadcast <- &message
 }

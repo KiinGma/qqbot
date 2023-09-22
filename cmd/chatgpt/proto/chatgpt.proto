@@ -5,7 +5,8 @@ option go_package = "./;rest";
 package rest;
 
 service ChatGptService {
-  rpc GetChat(ChatGptRequest) returns (ChatGptResponse) {}
+  rpc GetChatStream(ChatGptRequest) returns (stream ChatGptResponse) {}
+  rpc GetChat(ChatGptRequest) returns ( ChatGptResponse) {}
 }
 
 message ChatGptRequest {

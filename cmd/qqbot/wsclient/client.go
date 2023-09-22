@@ -3,11 +3,11 @@ package wsclient
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
+	"kiingma/cmd/qqbot/models"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"qqbot/cmd/qqbot/models"
 	"sync"
 	"time"
 )

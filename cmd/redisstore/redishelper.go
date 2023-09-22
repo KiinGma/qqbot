@@ -4,8 +4,8 @@ package redisstore
 import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
+	"kiingma/pkg/appconfig"
 	"log"
-	"qqbot/pkg/appconfig"
 	"sync"
 	"time"
 )

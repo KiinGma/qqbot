@@ -34,7 +34,7 @@ func DownFile(h *WsHandler, url string, name string) {
 	r, err := req.Get(url)
 	defer r.Body.Close()
 	sendIdStr := strconv.FormatUint(h.sendId, 10)
-	dir := h.appConfig.StaticWeb + "/" + sendIdStr
+	dir := h.AppConfig.StaticWeb + "/" + sendIdStr
 	file, err := os.Create(dir + "/" + name)
 	if os.IsNotExist(err) {
 		os.MkdirAll(dir, os.ModePerm)
@@ -47,5 +47,5 @@ func DownFile(h *WsHandler, url string, name string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 发布成功,发布地址: http://%v:%v/data/%v/%v", h.appConfig.APIHost, h.appConfig.ServerPort, h.sendId, name))
+	h.client.SendGroupMessageWithString(h.Gid, h.sendId, fmt.Sprintf(" 发布成功,发布地址: http://%v:%v/data/%v/%v", h.AppConfig.APIHost, h.AppConfig.ServerPort, h.sendId, name))
 }

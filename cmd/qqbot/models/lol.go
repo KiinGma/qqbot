@@ -192,6 +192,7 @@ type PlayerDetail struct {
 	WardSkinIndex             int          `json:"wardSkinIndex"`
 	WasAfk                    int          `json:"wasAfk"`
 	Win                       string       `json:"win"`
+	BalanceScore              int
 }
 
 type BattleHonour struct {
